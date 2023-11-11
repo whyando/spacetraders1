@@ -174,6 +174,13 @@ async function run_agent(universe, agent_config) {
         } else {
             console.log(`No unassigned probes. Trying to buy one`)
             try {
+                // might not have enough credits, and might not be a ship at the shipyard
+                const is_ship_present = Object.values(agent.ships).some(ship => ship.nav.waypointSymbol == probe_shipyard && ship.nav.status != 'IN_TRANSIT')
+                if (!is_ship_present) {
+                    console.log(`Ship not present at shipyard, not buying`)
+                    continue
+                }
+
                 const probe = await agent.buy_ship(probe_shipyard, 'SHIP_PROBE')
                 console.log(`Bought probe: ${probe.symbol}`)
                 status.ship = probe.symbol
