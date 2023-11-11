@@ -10,24 +10,22 @@ import probe_idle_script from './scripts/probe_idle.js'
 
 async function main() {
     const agents = [
-    // {
-    //     faction: 'COSMIC',
-    //     callsign: 'AD-ASTRA',
-    // },
+    {
+        faction: 'COSMIC',
+        callsign: 'AD-ASTRA',
+    },
     {
         faction: 'COSMIC',
         callsign: 'WHYANDO',
     },
-    // {
-    //     faction: 'COSMIC',
-    //     callsign: 'THE-VOID',
-    // },{
-    //     faction: 'COSMIC',
-    //     callsign: 'DEVNULL',
-    // },{
-    //     faction: 'COSMIC',
-    //     callsign: 'ROQUE',
-    // }
+    {
+        faction: 'COSMIC',
+        callsign: 'THE-VOID',
+    },
+    {
+        faction: 'COSMIC',
+        callsign: 'ROQUE',
+    }
     ]
 
     const universe = await Universe.load()
