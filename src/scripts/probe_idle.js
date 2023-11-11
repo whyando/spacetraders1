@@ -1,5 +1,8 @@
 import { sys } from '../util.js'
 
+const MARKET_REFRESH_INTERVAL = 15 * 60 * 1000
+const SHIPYARD_REFRESH_INTERVAL = 15 * 60 * 1000
+
 export default async function probe_idle_script(universe, probe, { waypoint_symbol }) {
     const system = await universe.get_system(sys(waypoint_symbol))
     const waypoint = system.waypoints.find(w => w.symbol == waypoint_symbol)
@@ -16,16 +19,16 @@ export default async function probe_idle_script(universe, probe, { waypoint_symb
 
     // Refresh market and shipyard every 15 minutes
     while (true) {
-        let sleep_duration = 15 * 60 * 1000
+        let sleep_duration = 60 * 60 * 1000
         if (refresh_market) {
             const market = await universe.get_local_market(waypoint_symbol)
             const ts = market?.timestamp ?? 0
-            const delay = 15 * 60 * 1000 - ((new Date()).valueOf() - new Date(ts).valueOf())
+            const delay = MARKET_REFRESH_INTERVAL - ((new Date()).valueOf() - new Date(ts).valueOf())
             if (delay <= 0) {
-                console.log(`Refreshing market ${waypoint_symbol}`)
+                // console.log(`Refreshing market ${waypoint_symbol}`)
                 await universe.save_local_market(await probe.refresh_market())
             } else {
-                console.log(`Sleeping for ${delay}ms before refreshing market ${waypoint_symbol}`)
+                // console.log(`Sleeping for ${delay}ms before refreshing market ${waypoint_symbol}`)
                 sleep_duration = Math.min(sleep_duration, delay)
             }
         }
@@ -33,12 +36,12 @@ export default async function probe_idle_script(universe, probe, { waypoint_symb
         if (refresh_shipyard) {
             const shipyard = await universe.get_local_shipyard(waypoint_symbol)
             const ts = shipyard?.timestamp ?? 0
-            const delay = 15 * 60 * 1000 - ((new Date()).valueOf() - new Date(ts).valueOf())
+            const delay = SHIPYARD_REFRESH_INTERVAL - ((new Date()).valueOf() - new Date(ts).valueOf())
             if (delay <= 0) {
-                console.log(`Refreshing shipyard ${waypoint_symbol}`)
+                // console.log(`Refreshing shipyard ${waypoint_symbol}`)
                 await universe.save_local_shipyard(await probe.refresh_shipyard())
             } else {
-                console.log(`Sleeping for ${delay}ms before refreshing shipyard ${waypoint_symbol}`)
+                // console.log(`Sleeping for ${delay}ms before refreshing shipyard ${waypoint_symbol}`)
                 sleep_duration = Math.min(sleep_duration, delay)
             }
         }
