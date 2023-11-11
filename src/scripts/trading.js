@@ -12,12 +12,18 @@ export default async function trading_script(universe, agent, ship, { system_sym
         let mission_exists = false
         try {
             await fs.mkdir('data/mission', { recursive: true })
-            await fs.access(`data/mission/${ship.symbol}.json`)
+            await fs.access(`data/mission/${ship.symbol}`)
             mission_exists = true
         } catch (error) {}
-        const mission = mission_exists && JSON.parse(await fs.readFile(`data/mission/${ship.symbol}.json`, 'utf8'))
+        const mission = mission_exists ? JSON.parse(await fs.readFile(`data/mission/${ship.symbol}`, 'utf8')) : null
         if (!mission || mission.status == 'complete') {
             console.log('picking new mission')
+
+            if (ship.cargo.units > 0) {
+                console.log('cargo:', JSON.stringify(ship.cargo))
+                throw new Error('cargo not empty')
+            }
+
             const options = await load_options(universe, ship.nav.waypointSymbol)
             const target = options[0]
             if (!target) {
@@ -29,7 +35,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
             const expected_profit = target.profit * 35
             console.log(`expected profit: +$${expected_profit}`)
             const mission = { ...target, status: 'buy' }
-            await fs.writeFile(`data/mission/${ship.symbol}.json`, JSON.stringify(mission,null,2))
+            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
         }
         else if (mission.status == 'buy') {
             await ship.refuel({maxFuelMissing: 50})
@@ -61,11 +67,11 @@ export default async function trading_script(universe, agent, ship, { system_sym
             if (holding <= 0) {
                 console.log('warning: no cargo after buy... aborting mission')
                 mission.status = 'complete'
-                await fs.writeFile(`data/mission/${ship.symbol}.json`, JSON.stringify(mission,null,2))
+                await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
                 continue
             }
             mission.status = 'sell'
-            await fs.writeFile(`data/mission/${ship.symbol}.json`, JSON.stringify(mission,null,2))
+            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
         }
         else if (mission.status == 'sell') {
             await ship.refuel({maxFuelMissing: 50})
@@ -79,7 +85,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
             }
             await universe.save_local_market(await ship.refresh_market())
             mission.status = 'complete'
-            await fs.writeFile(`data/mission/${ship.symbol}.json`, JSON.stringify(mission,null,2))
+            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
         } else {
             throw new Error(`unknown mission status: ${mission.status}`)
         }
