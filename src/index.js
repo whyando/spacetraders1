@@ -1,3 +1,5 @@
+import commandLineArgs from 'command-line-args'
+
 import Agent from './agent.js'
 import Universe from './universe.js'
 import { sys } from './util.js'
@@ -8,30 +10,31 @@ import trading_script from './scripts/trading.js'
 import shipyard_probe_script from './scripts/shipyard_probe.js'
 import probe_idle_script from './scripts/probe_idle.js'
 
+const optionDefinitions = [
+    { name: 'agents', alias: 'a', type: String, multiple: true, defaultOption: true },
+]
+
 async function main() {
-    const agents = [
-    {
-        faction: 'COSMIC',
-        callsign: 'AD-ASTRA',
-    },
-    {
-        faction: 'COSMIC',
-        callsign: 'WHYANDO',
-    },
-    {
-        faction: 'COSMIC',
-        callsign: 'THE-VOID',
-    },
-    {
-        faction: 'COSMIC',
-        callsign: 'ROQUE',
+    const options = commandLineArgs(optionDefinitions)
+    console.log(options)
+    if ((options.agents?.length ?? 0) == 0) {
+        console.log('Usage: node src/index.js <agent1> <agent2> ...')
+        throw new Error('No agents specified')
     }
-    ]
+
+    const agents = options.agents.map(x => {
+        if (!x.includes(':')) {
+            return {
+                faction: 'COSMIC',
+                callsign: x,
+            }
+        }
+        const [faction, callsign] = x.split(':')
+        return { faction, callsign }
+    })
 
     const universe = await Universe.load()
-
     await Promise.all(agents
-        // .filter(x => x.callsign == 'AD-ASTRA')
         .map(agent => run_agent(universe, agent))
     )
 }
@@ -64,7 +67,12 @@ async function run_agent(universe, agent_config) {
         }
     }
     const probe_shipyard = shipyards.find(s => s.shipTypes.some(x => x.type == 'SHIP_PROBE')).symbol
-        
+    const hauler_shipyard = shipyards.find(s => s.shipTypes.some(x => x.type == 'SHIP_LIGHT_HAULER')).symbol    
+    const shipyard_waypoints = {
+        'SHIP_PROBE': probe_shipyard,
+        'SHIP_LIGHT_HAULER': hauler_shipyard,
+    }
+
     const stages = [{
         // stage A, until we hit 1M credits
         // starting probe cycles markets fetching prices
@@ -113,7 +121,7 @@ async function run_agent(universe, agent_config) {
 
 
     // load stage-runner state
-    const stage_runner = await Resource.get(`data/stage_runner/${callsign}.json`, 
+    const stage_runner = Resource.get(`data/stage_runner/${callsign}.json`, 
     {
         spec: {
             stage: 'A',
@@ -138,11 +146,41 @@ async function run_agent(universe, agent_config) {
         const id = `idle_probe/${waypoint}`
         jobs[id] = {
             type: 'idle_probe',
-            waypoint,
-            priority: waypoint == probe_shipyard ? 100 : 0,
+            ship_type: 'SHIP_PROBE',
+            params: {
+                waypoint_symbol: waypoint,
+            },
+            priority: waypoint == probe_shipyard ? 100 : 50,
         }
     }
-    // todo: add trading jobs to spec
+    for (let i = 1; i <= 5; i++) {
+        jobs[`trading/${system_symbol}/${i}`] = {
+            type: 'trading',
+            ship_type: 'SHIP_LIGHT_HAULER',
+            params: {
+                system_symbol,
+                market_index: i,
+            },
+            priority: 0,
+        }
+    }
+    jobs[`gate/${system_symbol}`] = {
+        type: 'gate_builder',
+        ship_type: 'SHIP_LIGHT_HAULER',
+        params: {
+            system_symbol,
+        },
+        priority: 0,
+    }
+    jobs[`contract/${system_symbol}`] = {
+        type: 'contract',
+        ship_type: 'SHIP_LIGHT_HAULER',
+        params: {
+            system_symbol,
+        },
+        priority: 0,
+    }
+
     stage_runner.data.spec.jobs = jobs
 
     // delete jobs in status, that are not in spec
@@ -152,10 +190,17 @@ async function run_agent(universe, agent_config) {
         }
     }
 
-    const probes = Object.values(agent.ships).filter(s => s.frame.symbol == 'FRAME_PROBE').map(s => s.symbol)
-    console.log(`Probes: ${probes.join(', ')}`)
-    const unassigned_probes = probes.filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
-    console.log(`Unassigned probes: ${unassigned_probes.join(', ')}`)
+    const unassigned_ships = {}
+    unassigned_ships['SHIP_PROBE'] = Object.values(agent.ships)
+        .filter(s => s.frame.symbol == 'FRAME_PROBE')
+        .map(s => s.symbol)
+        .filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
+    unassigned_ships['SHIP_LIGHT_HAULER'] = Object.values(agent.ships)
+        .filter(s => s.frame.symbol == 'FRAME_LIGHT_FREIGHTER')
+        .map(s => s.symbol)
+        .filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
+    console.log(`Unassigned probes: ${unassigned_ships['SHIP_PROBE'].join(', ')}`)
+    console.log(`Unassigned haulers: ${unassigned_ships['SHIP_LIGHT_HAULER'].join(', ')}`)
 
     const job_ids = Object.keys(stage_runner.data.spec.jobs).sort((a, b) => stage_runner.data.spec.jobs[b].priority - stage_runner.data.spec.jobs[a].priority)
 
@@ -167,30 +212,34 @@ async function run_agent(universe, agent_config) {
         const status = stage_runner.data.status.jobs[job_id]
         if (status?.ship) continue
 
-        if (unassigned_probes.length != 0) {
-            console.log(`Assigning job ${job_id} to probe ${unassigned_probes[0]}`)
-            status.ship = unassigned_probes[0]
-            unassigned_probes.shift()
+        // shipyard_waypoints        
+
+        if (unassigned_ships[job.ship_type].length != 0) {
+            console.log(`Assigning job ${job_id} to ${job.ship_type} ${unassigned_ships[job.ship_type][0]}`)
+            status.ship = unassigned_ships[job.ship_type][0]
+            unassigned_ships[job.ship_type].shift()
         } else {
-            console.log(`No unassigned probes. Trying to buy one`)
+            console.log(`No unassigned ${job.ship_type}. Trying to buy one`)
             try {
                 // might not have enough credits, and might not be a ship at the shipyard
-                const is_ship_present = Object.values(agent.ships).some(ship => ship.nav.waypointSymbol == probe_shipyard && ship.nav.status != 'IN_TRANSIT')
+                const shipyard = shipyard_waypoints[job.ship_type]
+                const is_ship_present = Object.values(agent.ships).some(ship => ship.nav.waypointSymbol == shipyard && ship.nav.status != 'IN_TRANSIT')
                 if (!is_ship_present) {
                     console.log(`Ship not present at shipyard, not buying`)
                     continue
                 }
 
-                const probe = await agent.buy_ship(probe_shipyard, 'SHIP_PROBE')
-                console.log(`Bought probe: ${probe.symbol}`)
-                status.ship = probe.symbol
+                const ship = await agent.buy_ship(shipyard, job.ship_type)
+                console.log(`Bought ${job.ship_type}: ${ship.symbol}`)
+                status.ship = ship.symbol
             } catch (e) {
-                console.log(`Error while buying probe: ${e}`)
+                console.log(`Error while buying ${job.ship_type}: ${e}`)
             }
         }
     }
-    await stage_runner.save()
+    stage_runner.save()
     
+    // run scripts:
     const p = []
     for (const job_id in stage_runner.data.status.jobs) {
         const job = stage_runner.data.spec.jobs[job_id]
@@ -200,16 +249,20 @@ async function run_agent(universe, agent_config) {
         const ship = agent.ship_controller(status.ship)
         console.log(`Running job ${job_id} for ship ${ship.symbol}`)
         if (job.type == 'idle_probe') {
-            p.push(probe_idle_script(universe, ship, { waypoint_symbol: job.waypoint }))
+            p.push(probe_idle_script(universe, ship, job.params))
+        } else if (job.type == 'trading') {
+            p.push(trading_script(universe, agent.agent, ship, job.params))
+        } else {
+            console.log(`Unknown job type ${job.type}`)
         }
     }
 
-    // run scripts:
-    const cmd_ship = agent.ship_controller(`${callsign}-1`)
+    // const cmd_ship = agent.ship_controller(`${callsign}-1`)
+    // p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
+
     // const probe = agent.ship_controller(`${callsign}-2`)   
     // p.push(market_probe_script(universe, probe, { system_symbol }))
     // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
-    p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
     await Promise.all(p)
 }
 

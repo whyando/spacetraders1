@@ -1,91 +1,107 @@
 import fs from 'fs/promises'
 import { sys } from '../util.js'
+import Resource from '../resource.js'
+
+const RESERVED_CREDITS = 20000
+
+// shared state
+const market_shared_state = {}
 
 export default async function trading_script(universe, agent, ship, { system_symbol }) {
-    if (agent.symbol == 'DEVNULL') {
-        console.log('DEVNULL: skipping trading script')
-        return
-    }
-    console.log(agent.credits)
-    
-    while (true) {
-        let mission_exists = false
-        try {
-            await fs.mkdir('data/mission', { recursive: true })
-            await fs.access(`data/mission/${ship.symbol}`)
-            mission_exists = true
-        } catch (error) {}
-        const mission = mission_exists ? JSON.parse(await fs.readFile(`data/mission/${ship.symbol}`, 'utf8')) : null
-        if (!mission || mission.status == 'complete') {
-            console.log('picking new mission')
+    const market_shared_state = Resource.get(`data/market_shared/${system_symbol}.json`, {})
+    const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete'})
 
+    while (true) {
+        if (mission.data.status == 'complete') {
+            market_shared_state.data[ship.symbol] = []
+            market_shared_state.save()
+            console.log('picking new mission')
             if (ship.cargo.units > 0) {
                 console.log('cargo:', JSON.stringify(ship.cargo))
                 throw new Error('cargo not empty')
             }
 
             const options = await load_options(universe, ship.nav.waypointSymbol)
-            const target = options[0]
+            const filtered = options.filter(x => {
+                const buy_key = `buy/${x.buy_location.waypoint}/${x.good}` 
+                const sell_key = `sell/${x.sell_location.waypoint}/${x.good}`
+                const locks = Object.values(market_shared_state.data).flat()
+                return !locks.includes(buy_key) && !locks.includes(sell_key)
+            })
+            console.log(`Filtered ${options.length} options down to ${filtered.length} options due to market locks`)
+
+            const target = filtered[0]
             if (!target) {
                 console.log('no more profitable routes. sleeping for 5 minutes')
                 await new Promise(r => setTimeout(r, 1000*60*5))
                 continue
             }
             console.log(`target: ${target.good}`)
-            const expected_profit = target.profit * 35
+            const expected_profit = target.profit * ship.cargo.capacity
             console.log(`expected profit: +$${expected_profit}`)
-            const mission = { ...target, status: 'buy' }
-            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
+            mission.data = { ...target, status: 'buy' }
+            market_shared_state.data[ship.symbol] = [`buy/${target.buy_location.waypoint}/${target.good}`, `sell/${target.sell_location.waypoint}/${target.good}`]
+            market_shared_state.save()
+            mission.save()
         }
-        else if (mission.status == 'buy') {
-            await ship.refuel({maxFuelMissing: 50})
-            await ship.navigate(mission.buy_location.waypoint)
+        else if (mission.data.status == 'buy') {
+            const { good, buy_location, sell_location } = mission.data
+        
+            await ship.refuel({maxFuelMissing: 99})
+            await ship.navigate(buy_location.waypoint)
             await ship.wait_for_transit()
-            // await ship.refresh_market()
+            await universe.save_local_market(await ship.refresh_market())
+
             while (ship.cargo.units < ship.cargo.capacity) {
-                const market = await universe.get_local_market(mission.buy_location.waypoint)
-                const { purchasePrice } = market.tradeGoods.find(g => g.symbol == mission.good)
-                if (purchasePrice != mission.buy_location.purchasePrice) {
-                    console.log(`warning: purchase price changed ${mission.buy_location.purchasePrice} -> ${purchasePrice}`)
-                    if (purchasePrice > 0.5*(mission.buy_location.purchasePrice + mission.sell_location.sellPrice)) {
+                const market = await universe.get_local_market(buy_location.waypoint)
+                const { purchasePrice } = market.tradeGoods.find(g => g.symbol == good)
+                if (purchasePrice != buy_location.purchasePrice) {
+                    console.log(`warning: purchase price changed ${buy_location.purchasePrice} -> ${purchasePrice}`)
+                    if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
                         console.log('not buying anymore - price too high')
                         break
                     }
                 }
                 console.log(`credits: $${agent.credits}`)
-                const available_credits = agent.credits - 20000
-                const quantity = Math.min(ship.cargo.capacity - ship.cargo.units, mission.buy_location.tradeVolume, Math.floor(available_credits / purchasePrice))
+                const available_credits = agent.credits - RESERVED_CREDITS
+                const quantity = Math.min(ship.cargo.capacity - ship.cargo.units, buy_location.tradeVolume, Math.floor(available_credits / purchasePrice))
                 if (quantity <= 0) {
                     console.log('not enough credits to fill cargo')
                     break
                 }
-                const resp = await ship.buy_good(mission.good, quantity)
+                const resp = await ship.buy_good(good, quantity)
                 await universe.save_local_market(await ship.refresh_market())
                 Object.assign(agent, resp.agent)
             }
-            const holding = ship.cargo.inventory.find(g => g.symbol == mission.good)?.units ?? 0
+            const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
             if (holding <= 0) {
                 console.log('warning: no cargo after buy... aborting mission')
                 mission.status = 'complete'
                 await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
                 continue
             }
-            mission.status = 'sell'
-            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
+            market_shared_state.data[ship.symbol] = [`sell/${sell_location.waypoint}/${good}`]
+            market_shared_state.save()
+            mission.data.status = 'sell'
+            mission.save()
         }
-        else if (mission.status == 'sell') {
-            await ship.refuel({maxFuelMissing: 50})
-            await ship.navigate(mission.sell_location.waypoint)
+        else if (mission.data.status == 'sell') {
+            const { good, sell_location } = mission.data
+
+            await ship.refuel({maxFuelMissing: 99})
+            await ship.navigate(sell_location.waypoint)
             await ship.wait_for_transit()
-            // await ship.refresh_market()
-            while (ship.cargo.units > 0) {
-                const quantity = Math.min(ship.cargo.units, mission.sell_location.tradeVolume)
-                const resp = await ship.sell_good(mission.good, quantity)
-                Object.assign(agent, resp.agent)
-            }
             await universe.save_local_market(await ship.refresh_market())
-            mission.status = 'complete'
-            await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
+            while (ship.cargo.units > 0) {
+                const quantity = Math.min(ship.cargo.units, sell_location.tradeVolume)
+                const resp = await ship.sell_good(good, quantity)
+                Object.assign(agent, resp.agent)
+                await universe.save_local_market(await ship.refresh_market())
+            }
+            mission.data.status = 'complete'
+            mission.save()            
+            market_shared_state.data[ship.symbol] = []
+            market_shared_state.save()
         } else {
             throw new Error(`unknown mission status: ${mission.status}`)
         }
@@ -105,11 +121,6 @@ const load_options = async (universe, ship_location) => {
         const distance = Math.round(Math.sqrt((w.x - current_waypoint.x)**2 + (w.y - current_waypoint.y)**2))
         const market = await universe.get_local_market(w.symbol)
         if (!market) continue
-        // if (!market.tradeGoods) {
-        //     console.log(`warning: no trade goods at ${w.symbol}`)
-        //     await fs.rm(`./data/local_market/${w.symbol}.json`)
-        //     // continue
-        // }
         for (const good of market.tradeGoods) {
             if (!goods[good.symbol]) {
                 goods[good.symbol] = {
