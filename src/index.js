@@ -9,7 +9,9 @@ import market_probe_script from './scripts/market_probe.js'
 import trading_script from './scripts/trading.js'
 import shipyard_probe_script from './scripts/shipyard_probe.js'
 import probe_idle_script from './scripts/probe_idle.js'
+import gate_builder_script from './scripts/gate_builder.js'
 
+// todo: add ship filters for type, callsign, etc
 const optionDefinitions = [
     { name: 'agents', alias: 'a', type: String, multiple: true, defaultOption: true },
 ]
@@ -164,21 +166,28 @@ async function run_agent(universe, agent_config) {
             priority: 0,
         }
     }
-    jobs[`gate/${system_symbol}`] = {
-        type: 'gate_builder',
-        ship_type: 'SHIP_LIGHT_HAULER',
-        params: {
-            system_symbol,
-        },
-        priority: 0,
+    for (let i = 1; i <= 1; i++) {
+        // if (callsign != 'WHYANDO') continue
+        jobs[`gate/${system_symbol}/${i}`] = {
+            type: 'gate_builder',
+            ship_type: 'SHIP_LIGHT_HAULER',
+            params: {
+                system_symbol,
+            },
+            priority: 0,
+        }
     }
-    jobs[`contract/${system_symbol}`] = {
-        type: 'contract',
-        ship_type: 'SHIP_LIGHT_HAULER',
-        params: {
-            system_symbol,
-        },
-        priority: 0,
+    for (let i = 1; i <= 1; i++) {
+        continue
+        // if (callsign != 'WHYANDO') continue
+        jobs[`contract/${system_symbol}/${i}`] = {
+            type: 'contract',
+            ship_type: 'SHIP_LIGHT_HAULER',
+            params: {
+                system_symbol,
+            },
+            priority: 0,
+        }
     }
 
     stage_runner.data.spec.jobs = jobs
@@ -252,6 +261,8 @@ async function run_agent(universe, agent_config) {
             p.push(probe_idle_script(universe, ship, job.params))
         } else if (job.type == 'trading') {
             p.push(trading_script(universe, agent.agent, ship, job.params))
+        } else if (job.type == 'gate_builder') {
+            p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
         } else {
             console.log(`Unknown job type ${job.type}`)
         }

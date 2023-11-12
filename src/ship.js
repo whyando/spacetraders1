@@ -163,7 +163,7 @@ class Ship {
         this._ship.nav = nav
     
         await this.wait_for_transit()
-        // mutate this._ship ?
+        // mutate this._ship to change nav.status from IN_TRANSIT to IN_ORBIT ?
 
         return resp.data.data
     }
@@ -325,6 +325,8 @@ class Ship {
     }
 
     async supply_construction(waypoint, symbol, units) {
+        await this.wait_for_transit()
+        await this.dock()
         const waypoint_symbol = waypoint // this._ship.nav.waypointSymbol
         const system_symbol = sys(waypoint_symbol)
         console.log(`Supplying construction for ${this._ship.symbol}`)
@@ -337,7 +339,8 @@ class Ship {
         validate_response(resp)
         const { construction, cargo } = resp.data.data
         this._ship.cargo = cargo
-        console.log(JSON.stringify(construction))        
+        console.log(JSON.stringify(construction))
+        return construction        
     }
 }
 

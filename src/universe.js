@@ -33,6 +33,22 @@ export default class Universe {
         return shipyard
     }
 
+    async get_remote_construction(waypoint) {
+        const system_symbol = sys(waypoint)
+        const construction = await this.client.load_resource(
+            `data/remote_construction/${waypoint}.json`,
+            `/v2/systems/${system_symbol}/waypoints/${waypoint}/construction`,
+            { map_fn: x => x.data })
+        return construction
+    }
+
+    async save_remote_construction(construction) {
+        // this should probably be a method on the client
+        const waypoint = construction.symbol
+        await fs.mkdir(`data/remote_construction`, { recursive: true })
+        await fs.writeFile(`data/remote_construction/${waypoint}.json`, JSON.stringify(construction, null, 2) + '\n')
+    }
+
     async get_local_market(waypoint) {
         if (this.local_markets[waypoint]) {
             return this.local_markets[waypoint]
