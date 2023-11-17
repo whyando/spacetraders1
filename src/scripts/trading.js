@@ -4,6 +4,18 @@ import Resource from '../resource.js'
 
 const RESERVED_CREDITS = 20000
 
+const supply_map = {
+    'ABUNDANT': 5,
+    'HIGH': 4,
+    'MODERATE': 3,
+    'LIMITED': 2,
+    'SCARCE': 1,
+}
+
+const should_buy = (good, market) => {
+    return supply_map[market.supply] >= 3
+}
+
 export default async function trading_script(universe, agent, ship, { system_symbol }) {
     const market_shared_state = Resource.get(`data/market_shared/${system_symbol}.json`, {})
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete'})
@@ -26,8 +38,10 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 return !locks.includes(buy_key) && !locks.includes(sell_key)
             })
             console.log(`Filtered ${options.length} options down to ${filtered.length} options due to market locks`)
+            const filtered2 = filtered.filter(x => should_buy(x.good, x.buy_location))
+            console.log(`Filtered ${filtered.length} options down to ${filtered2.length} options due to supply`)
 
-            const target = filtered[0]
+            const target = filtered2[0]
             if (!target) {
                 console.log('no more profitable routes. sleeping for 5 minutes')
                 await new Promise(r => setTimeout(r, 1000*60*5))
@@ -51,11 +65,15 @@ export default async function trading_script(universe, agent, ship, { system_sym
 
             while (ship.cargo.units < ship.cargo.capacity) {
                 const market = await universe.get_local_market(buy_location.waypoint)
-                const { purchasePrice } = market.tradeGoods.find(g => g.symbol == good)
+                const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == good)
                 if (purchasePrice != buy_location.purchasePrice) {
                     console.log(`warning: purchase price changed ${buy_location.purchasePrice} -> ${purchasePrice}`)
-                    if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
-                        console.log('not buying anymore - price too high')
+                    // if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
+                    //     console.log('not buying anymore - price too high')
+                    //     break
+                    // }
+                    if (should_buy(good, { purchasePrice, supply }) == false) {
+                        console.log(`not buying anymore - supply too low: ${supply}, ${purchasePrice}`)
                         break
                     }
                 }
@@ -125,11 +143,14 @@ const load_options = async (universe, ship_location) => {
                     buy_price: null,
                     buy_waypoint: null,
                     buy_trade_volume: null,
-                    // (supply, activity)
+                    buy_activity: null,
+                    buy_supply: null,
                     // maximum price seen
                     sell_price: null,
                     sell_waypoint: null,
                     sell_trade_volume: null,
+                    sell_activity: null,
+                    sell_supply: null,
                 }
             }
             const { purchasePrice, sellPrice, tradeVolume } = good
@@ -137,11 +158,15 @@ const load_options = async (universe, ship_location) => {
                 goods[good.symbol].buy_price = purchasePrice
                 goods[good.symbol].buy_waypoint = w.symbol
                 goods[good.symbol].buy_trade_volume = tradeVolume
+                goods[good.symbol].buy_activity = good.activity
+                goods[good.symbol].buy_supply = good.supply
             }
             if (goods[good.symbol].sell_price == null || sellPrice > goods[good.symbol].sell_price) {
                 goods[good.symbol].sell_price = sellPrice
                 goods[good.symbol].sell_waypoint = w.symbol
                 goods[good.symbol].sell_trade_volume = tradeVolume
+                goods[good.symbol].sell_activity = good.activity
+                goods[good.symbol].sell_supply = good.supply
             }
         }
     }
@@ -153,7 +178,7 @@ const load_options = async (universe, ship_location) => {
         console.log(`${symbol}\t+$${good.profit}\t$${good.buy_price}/$${good.sell_price}\t${good.buy_waypoint} -> ${good.sell_waypoint}`)
     })
     return options
-        .filter(([symbol, good]) => good.profit >= 100)
+        .filter(([symbol, good]) => good.profit >= 1)
         .map(([symbol, good]) => ({
             good: symbol,
             profit: good.profit,
@@ -161,11 +186,15 @@ const load_options = async (universe, ship_location) => {
                 waypoint: good.buy_waypoint,
                 tradeVolume: good.buy_trade_volume,
                 purchasePrice: good.buy_price,
+                activity: good.buy_activity,
+                supply: good.buy_supply,
             },
             sell_location: {
                 waypoint: good.sell_waypoint,
                 tradeVolume: good.sell_trade_volume,
                 sellPrice: good.sell_price,
+                activity: good.sell_activity,
+                supply: good.sell_supply,
             },
         }))
 }
