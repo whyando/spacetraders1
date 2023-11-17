@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
+import assert from 'assert'
 
 const RESERVED_CREDITS = 20000
 
@@ -13,6 +14,7 @@ const supply_map = {
 }
 
 const should_buy = (good, market) => {
+    assert(market.supply)
     return supply_map[market.supply] >= 3
 }
 
@@ -91,8 +93,8 @@ export default async function trading_script(universe, agent, ship, { system_sym
             const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
             if (holding <= 0) {
                 console.log('warning: no cargo after buy... aborting mission')
-                mission.status = 'complete'
-                await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
+                mission.data.status = 'complete'
+                mission.save()
                 continue
             }
             market_shared_state.data[ship.symbol] = [`sell/${sell_location.waypoint}/${good}`]

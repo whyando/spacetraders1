@@ -10,6 +10,7 @@ import trading_script from './scripts/trading.js'
 import shipyard_probe_script from './scripts/shipyard_probe.js'
 import probe_idle_script from './scripts/probe_idle.js'
 import gate_builder_script from './scripts/gate_builder.js'
+import contract_script from './scripts/contract.js'
 
 // todo: add ship filters for type, callsign, etc
 const optionDefinitions = [
@@ -178,11 +179,10 @@ async function run_agent(universe, agent_config) {
         }
     }
     for (let i = 1; i <= 1; i++) {
-        continue
-        // if (callsign != 'WHYANDO') continue
+        if (callsign != 'WHYANDO') continue
         jobs[`contract/${system_symbol}/${i}`] = {
             type: 'contract',
-            ship_type: 'SHIP_LIGHT_HAULER',
+            ship_type: 'SHIP_COMMAND',
             params: {
                 system_symbol,
             },
@@ -208,8 +208,13 @@ async function run_agent(universe, agent_config) {
         .filter(s => s.frame.symbol == 'FRAME_LIGHT_FREIGHTER')
         .map(s => s.symbol)
         .filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
+    unassigned_ships['SHIP_COMMAND'] = Object.values(agent.ships)
+        .filter(s => s.frame.symbol == 'FRAME_FRIGATE')
+        .map(s => s.symbol)
+        .filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
     console.log(`Unassigned probes: ${unassigned_ships['SHIP_PROBE'].join(', ')}`)
     console.log(`Unassigned haulers: ${unassigned_ships['SHIP_LIGHT_HAULER'].join(', ')}`)
+    console.log(`Unassigned command ships: ${unassigned_ships['SHIP_COMMAND'].join(', ')}`)
 
     const job_ids = Object.keys(stage_runner.data.spec.jobs).sort((a, b) => stage_runner.data.spec.jobs[b].priority - stage_runner.data.spec.jobs[a].priority)
 
@@ -229,6 +234,10 @@ async function run_agent(universe, agent_config) {
             unassigned_ships[job.ship_type].shift()
         } else {
             console.log(`No unassigned ${job.ship_type}. Trying to buy one`)
+            if (job.ship_type == 'SHIP_COMMAND') {
+                console.log(`Not buying command ships`)
+                continue
+            }
             try {
                 // might not have enough credits, and might not be a ship at the shipyard
                 const shipyard = shipyard_waypoints[job.ship_type]
@@ -263,7 +272,9 @@ async function run_agent(universe, agent_config) {
             p.push(trading_script(universe, agent.agent, ship, job.params))
         } else if (job.type == 'gate_builder') {
             p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
-        } else {
+        } else if (job.type == 'contract') {
+            p.push(contract_script(universe, agent, ship))
+        } else  {
             console.log(`Unknown job type ${job.type}`)
         }
     }

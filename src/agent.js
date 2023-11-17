@@ -79,10 +79,52 @@ export default class Agent {
         return ship
     }
 
+    async get_active_contract() {
+        const contract = this.contracts.find(c => c.fulfilled == false)
+        return contract
+    }
+
+    async accept_contract(contract_id) {
+        console.log('accepting contract')
+        const contract = this.contracts.find(c => c.id == contract_id)
+    
+        const uri = `https://api.spacetraders.io/v2/my/contracts/${contract.id}/accept`
+        const resp = await this.client.post(uri, {})        
+        const { contract: contract_upd, agent } = resp.data.data
+        Object.assign(this.agent, agent)
+        Object.assign(contract, contract_upd)
+    }
+
+    async fulfill_contract(contract_id) {
+        console.log('fulfilling contract')
+        const contract = this.contracts.find(c => c.id == contract_id)
+    
+        const uri = `https://api.spacetraders.io/v2/my/contracts/${contract.id}/fulfill`
+        const resp = await this.client.post(uri, {})
+        const { contract: contract_upd, agent } = resp.data.data
+        Object.assign(this.agent, agent)
+        Object.assign(contract, contract_upd)
+    }
+
+    async update_contract(contract_upd) {
+        console.log('updating contract')
+        const contract = this.contracts.find(c => c.id == contract_upd.id)
+        Object.assign(contract, contract_upd)
+    }
+
+    async append_contract(contract) {
+        this.contracts.push(contract)
+    }
 
     async load_contracts() {
         // kinda want these in separate files
-        this.contracts = await this.client.load_resource(`data/contracts/${this.callsign}.json`, '/v2/my/contracts', {paginated: true})
+        this.contracts = await this.client.load_resource(
+            `data/contracts/${this.callsign}.json`, 
+            '/v2/my/contracts', 
+            {
+                paginated: true,
+                always_fetch: true,
+            })
     }
 
     async load_all() {
