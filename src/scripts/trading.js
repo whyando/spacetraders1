@@ -1,7 +1,9 @@
 import fs from 'fs/promises'
+import assert from 'assert'
+
 import { sys } from '../util.js'
 import Resource from '../resource.js'
-import assert from 'assert'
+import Pathfinding from '../pathfinding.js'
 
 const RESERVED_CREDITS = 20000
 
@@ -23,6 +25,8 @@ export default async function trading_script(universe, agent, ship, { system_sym
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete'})
 
     while (true) {
+        await ship.wait_for_transit()
+
         if (mission.data.status == 'complete') {
             market_shared_state.data[ship.symbol] = []
             market_shared_state.save()
@@ -106,7 +110,20 @@ export default async function trading_script(universe, agent, ship, { system_sym
             const { good, sell_location } = mission.data
 
             await ship.refuel({maxFuelMissing: 99})
-            await ship.navigate(sell_location.waypoint)
+            // await ship.navigate(sell_location.waypoint)
+            {
+                const route = await Pathfinding.generate_route(universe, ship.nav.waypointSymbol, sell_location.waypoint,
+                    { max_fuel: ship.fuel.capacity }
+                )
+                console.log('route:', route)
+                throw new Error('not implemented')
+                // system
+                // from
+                // to
+                // current fuel level
+            }
+
+
             await ship.wait_for_transit()
             await universe.save_local_market(await ship.refresh_market())
             while (ship.cargo.units > 0) {

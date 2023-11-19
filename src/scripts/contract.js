@@ -1,10 +1,7 @@
-import axios from 'axios'
-import fs from 'fs/promises'
+
 import assert from 'assert'
-import { sys } from '../util.js'
 import Resource from '../resource.js'
 
-// contract states: not accepted, active, complete
 
 async function load_good_info(universe, system_symbol, target_good) {
     const system = await universe.get_system(system_symbol)
@@ -103,7 +100,9 @@ export default async function contract_script(universe, agent, ship) {
                 console.log(`reward: ${reward}`)
                 const profit = reward - (cost_per_unit * required)
                 console.log(`profit: ${reward - (cost_per_unit * required)}`)
-                assert(profit > -700000)
+                assert(profit > -1000)
+                assert(cost_per_unit * required < 20000)
+                assert(false)
                 mission.data = {
                     'type': 'deliver_trip',
                     'status': 'buy',

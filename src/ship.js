@@ -149,8 +149,8 @@ class Ship {
         assert(this._ship.nav.flightMode == target)
     }
 
-    async navigate(waypoint_symbol) {
-        await this.wait_for_transit()
+    async navigate(waypoint_symbol, { wait = true } = {}) {
+        assert.equal(this.is_in_transit(), false)
         if (this._ship.nav.waypointSymbol == waypoint_symbol)
             return
         await this.orbit()
@@ -162,9 +162,10 @@ class Ship {
         this._ship.fuel = fuel
         this._ship.nav = nav
     
-        await this.wait_for_transit()
-        // mutate this._ship to change nav.status from IN_TRANSIT to IN_ORBIT ?
-
+        if (wait) {
+            await this.wait_for_transit()
+            // mutate this._ship to change nav.status from IN_TRANSIT to IN_ORBIT ?
+        }
         return resp.data.data
     }
 
@@ -186,6 +187,13 @@ class Ship {
         await this.wait_for_transit()
         // mutate this._ship ?
         return resp.data.data
+    }
+
+    is_in_transit() {
+        const arrivalTime = new Date(this._ship.nav.route.arrival)
+        // console.log(`arrivalTime: ${arrivalTime}`)
+        const now = new Date()
+        return arrivalTime.valueOf() >= now.valueOf()
     }
 
     async wait_for_transit() {
