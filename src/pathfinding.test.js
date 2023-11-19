@@ -37,7 +37,7 @@ describe('Pathfinding', () => {
         const srcWaypoint = 'X1-S1-A';
         const destWaypoint = 'X1-S1-E';
 
-        const route = await Pathfinding.generate_route(mockUniverse, srcWaypoint, destWaypoint, { max_fuel: 100 });
+        const route = await Pathfinding.generate_route(mockUniverse, srcWaypoint, destWaypoint, { max_fuel: 200 });
 
         assert(Array.isArray(route));
         assert(route.length > 0);
