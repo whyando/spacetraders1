@@ -54,6 +54,12 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
         }
         await ship.goto(siphon_location)
         await ship.siphon()
+        // jettison non- 'LIQUID_NITROGEN'
+        for (const item of ship.cargo.inventory) {
+            if (item.symbol == 'HYDROCARBON' || item.symbol == 'LIQUID_HYDROGEN') {
+                await ship.jettison(item.symbol, item.units)
+            }
+        }
         return
     }
     else if (mission.data.status == 'sell') {

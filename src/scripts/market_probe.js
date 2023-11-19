@@ -21,8 +21,11 @@ export default async function market_probe_script(universe, probe, { system_symb
         const weight = (t, d) => {
             // more than 3 hours: distance only
             // less than 3 hours: recently updated markets are less important
+            // less than 6 minutes: no need to update
             const age = (now - new Date(t).valueOf()) / 1000 / 60 / 60
-            if (age > 3) {
+            if (age < 0.1) {
+                return 999999999
+            } else if (age > 3) {
                 return d
             } else {
                 return d + (3 - age) * 250

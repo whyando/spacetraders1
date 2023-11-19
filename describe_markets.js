@@ -98,7 +98,8 @@ for (let i = 1; i < linear_chain.length; i++) {
         const is_export = market.exports.some(x => x.symbol == linear_chain[i])
         if (!is_import || !is_export) continue
 
-        console.log(`${linear_chain[i-1]} -> ${linear_chain[i]} at ${w.symbol}`)
+        console.log(`${w.symbol} ${linear_chain[i-1]} -> ${linear_chain[i]}`)
+        console.log(`(${(new Date(market.timestamp)).toISOString()})`)
         const import_good = {
             market: w.symbol,
             ...market.tradeGoods.find(x => x.symbol == linear_chain[i-1])

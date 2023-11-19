@@ -34,30 +34,30 @@ async function step(universe, agent, ship, { work_markets }) {
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete', step: 0 })
 
     if (mission.data.status == 'complete') {
-        console.log('picking new mission, step', mission.data.step)
-        // for (let i = 0; i < LINEAR_CHAIN.length; i++) {
-        //     const options = await load_options(universe, ship.nav.systemSymbol, work_markets, i)
-        //     console.log('step:', i, 'options', options)
-        // }
-        const options = await load_options(universe, ship.nav.systemSymbol, work_markets, mission.data.step)
-        const buy = options.buy.filter(x => supply_map[x.supply] >= 3)
-        const sell = options.sell.filter(x => supply_map[x.supply] <= 3)
-        console.log(`After supply: ${buy.length} buy options, ${sell.length} sell options`)
-        if (buy.length == 0 || sell.length == 0) {
-            console.log(`failed to transfer ${LINEAR_CHAIN[mission.data.step]}`)
-            mission.data.step = (mission.data.step + 1) % LINEAR_CHAIN.length
-            return mission.save()            
+        for (let di = 1; di <= LINEAR_CHAIN.length; di++) {
+            const step = (mission.data.step + di) % LINEAR_CHAIN.length
+            console.log('picking new mission, step', step)
+            const options = await load_options(universe, ship.nav.systemSymbol, work_markets, step)
+            const buy = options.buy.filter(x => supply_map[x.supply] >= 3)
+            const sell = options.sell.filter(x => supply_map[x.supply] <= 3)
+            console.log(`After supply: ${buy.length} buy options, ${sell.length} sell options`)
+            if (buy.length == 0 || sell.length == 0) {
+                console.log(`failed to transfer ${LINEAR_CHAIN[step]}`)
+                continue
+            }
+            // pick random buy and sell
+            const buy_good = buy[Math.floor(Math.random() * buy.length)]
+            const sell_good = sell[Math.floor(Math.random() * sell.length)]
+            mission.data = {
+                status: 'buy',
+                buy_good,
+                sell_good,
+                step: step,
+            }
+            return mission.save()
         }
-        // pick random buy and sell
-        const buy_good = buy[Math.floor(Math.random() * buy.length)]
-        const sell_good = sell[Math.floor(Math.random() * sell.length)]
-        mission.data = {
-            status: 'buy',
-            buy_good,
-            sell_good,
-            step: mission.data.step,
-        }
-        return mission.save()
+        console.log('no viable supply chain routes. sleeping for 5 minutes')
+        return await new Promise(r => setTimeout(r, 1000*60*5))
     }
     else if (mission.data.status == 'buy') {
         const { buy_good, sell_good } = mission.data
@@ -67,7 +67,7 @@ async function step(universe, agent, ship, { work_markets }) {
 
         while (ship.cargo.units < ship.cargo.capacity) {
             const market = await universe.get_local_market(buy_good.market)
-            const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == good)
+            const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
             if (purchasePrice != buy_good.purchasePrice) {
                 console.log(`warning: purchase price changed ${buy_good.purchasePrice} -> ${purchasePrice}`)
                 if (purchasePrice > sell_good.sellPrice) {
@@ -79,22 +79,22 @@ async function step(universe, agent, ship, { work_markets }) {
                     break
                 }
             }
+            console.log('credits: ', agent.credits)
             const available_credits = agent.credits - RESERVED_CREDITS
             const ideal_quantity = Math.min(ship.cargo.capacity, 4 * buy_good.tradeVolume, 4 * sell_good.tradeVolume)
             const quantity = Math.min(ideal_quantity - ship.cargo.units, buy_good.tradeVolume, Math.floor(available_credits / purchasePrice))
             if (quantity <= 0) {
                 break
             }
-            const resp = await ship.buy_good(good, quantity)
+            const resp = await ship.buy_good(buy_good.symbol, quantity)
             await universe.save_local_market(await ship.refresh_market())
-            Object.assign(agent, resp.agent)
+            Object.assign(agent.agent, resp.agent)
         }
-        const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
+        const holding = ship.cargo.inventory.find(g => g.symbol == buy_good.symbol)?.units ?? 0
         if (holding <= 0) {
             console.log('warning: no cargo after buy... aborting mission')
             mission.data = {
                 status: 'complete',
-                step: (mission.data.step + 1) % LINEAR_CHAIN.length,
             }
             return mission.save()
         }
@@ -108,13 +108,15 @@ async function step(universe, agent, ship, { work_markets }) {
         await universe.save_local_market(await ship.refresh_market())
 
         while (ship.cargo.units > 0) {
-            const quantity = Math.min(ship.cargo.units, sell_good.tradeVolume)
-            const resp = await ship.sell_good(good, quantity)
-            Object.assign(agent, resp.agent)
+            const market = await universe.get_local_market(sell_good.market)
+            const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == sell_good.symbol)
+
+            const quantity = Math.min(ship.cargo.units, tradeVolume)
+            const resp = await ship.sell_good(sell_good.symbol, quantity)
+            Object.assign(agent.agent, resp.agent)
             await universe.save_local_market(await ship.refresh_market())
         }
         mission.data.status = 'complete'
-        mission.data.step = (mission.data.step + 1) % LINEAR_CHAIN.length
         return mission.save()
     } else {
         throw new Error(`unknown status: ${mission.data.status}`)

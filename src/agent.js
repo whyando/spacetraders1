@@ -36,6 +36,10 @@ export default class Agent {
     ships = null
     contracts = null
 
+    get credits() {
+        return this.agent.credits
+    }
+
     async load_agent() {
         this.agent = await this.client.load_resource(
             `data/agent/${this.callsign}.json`,
