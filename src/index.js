@@ -358,10 +358,13 @@ async function run_agent(universe, agent_config) {
     const probe_d = agent.ship_controller(`${callsign}-D`)
     const probe_e = agent.ship_controller(`${callsign}-E`)
     const probe_f = agent.ship_controller(`${callsign}-F`)
+    const probe_10 = agent.ship_controller(`${callsign}-10`)
+
     p.push(probe_idle_script(universe, probe_3, { waypoint_symbol: 'X1-DM98-G52' })) // market: nitrogen -> fertilizer
     p.push(probe_idle_script(universe, probe_d, { waypoint_symbol: 'X1-DM98-E46' })) // market: fertilizer -> fabrics
     p.push(probe_idle_script(universe, probe_e, { waypoint_symbol: 'X1-DM98-K84' })) // market: fabrics -> clothing
     p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
+    p.push(probe_idle_script(universe, probe_10, { waypoint_symbol: 'X1-DM98-C39' })) // shipyard for siphon drones
 
     for (const s of Object.values(agent.ships)) {
         const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')

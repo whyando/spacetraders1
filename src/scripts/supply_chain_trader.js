@@ -56,8 +56,8 @@ async function step(universe, agent, ship, { work_markets }) {
             }
             return mission.save()
         }
-        console.log('no viable supply chain routes. sleeping for 5 minutes')
-        return await new Promise(r => setTimeout(r, 1000*60*5))
+        console.log('no viable supply chain routes. sleeping for 3 minutes')
+        return await new Promise(r => setTimeout(r, 1000*60*3))
     }
     else if (mission.data.status == 'buy') {
         const { buy_good, sell_good } = mission.data
