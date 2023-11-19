@@ -2,6 +2,7 @@ import assert from 'assert'
 import Resource from '../resource.js'
 
 export default async function asteroid_controller_script(universe, agent, miners, haulers) {
+    throw new Error('wip')
     console.log(`asteroid_controller_script`);
     console.log(`extractors: ${extractors.map(x => x.symbol)}`);
     console.log(`haulers: ${haulers.map(x => x.symbol)}`);

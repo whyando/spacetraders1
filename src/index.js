@@ -13,6 +13,8 @@ import probe_idle_script from './scripts/probe_idle.js'
 import gate_builder_script from './scripts/gate_builder.js'
 import contract_script from './scripts/contract.js'
 import asteroid_controller_script from './scripts/asteroid_controller.js'
+import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
+import supply_chain_trader from './scripts/supply_chain_trader.js'
 
 // todo: add ship filters for type, callsign, etc
 const optionDefinitions = [
@@ -351,6 +353,18 @@ async function run_agent(universe, agent_config) {
     const probe = agent.ship_controller(`${callsign}-2`)   
     p.push(market_probe_script(universe, probe, { system_symbol }))
     // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
+
+    for (const s of Object.values(agent.ships)) {
+        const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')
+        if (is_siphoner) {
+            const ship = agent.ship_controller(s.symbol)
+            p.push(siphon_script(universe, agent, ship))
+        }
+    }
+
+    const hauler_C = agent.ship_controller(`${callsign}-C`)
+    p.push(supply_chain_trader(universe, agent, hauler_C))
+
     await Promise.all(p)
 }
 

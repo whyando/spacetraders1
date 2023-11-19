@@ -1,9 +1,7 @@
-import fs from 'fs/promises'
 import assert from 'assert'
 
 import { sys } from '../util.js'
 import Resource from '../resource.js'
-import Pathfinding from '../pathfinding.js'
 
 const RESERVED_CREDITS = 20000
 
@@ -31,6 +29,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
             market_shared_state.data[ship.symbol] = []
             market_shared_state.save()
             console.log('picking new mission')
+            // throw new Error('interrupt')
             if (ship.cargo.units > 0) {
                 console.log('cargo:', JSON.stringify(ship.cargo))
                 throw new Error('cargo not empty')
@@ -72,10 +71,10 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == good)
                 if (purchasePrice != buy_location.purchasePrice) {
                     console.log(`warning: purchase price changed ${buy_location.purchasePrice} -> ${purchasePrice}`)
-                    // if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
-                    //     console.log('not buying anymore - price too high')
-                    //     break
-                    // }
+                    if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
+                        console.log('not buying anymore - price too high')
+                        break
+                    }
                     if (should_buy(good, { purchasePrice, supply }) == false) {
                         console.log(`not buying anymore - supply too low: ${supply}, ${purchasePrice}`)
                         break
