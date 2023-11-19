@@ -1,11 +1,6 @@
 import assert from 'assert'
-
-// todo: util
-const sys = (symbol) => {
-    const arr = symbol.split('-')
-    assert(arr.length == 3)
-    return arr.slice(0, 2).join('-')
-}
+import Pathfinding from './pathfinding.js'
+import { sys } from './util.js'
 
 function validate_response(resp) {
     if (resp.status >= 200 && resp.status < 300) return
@@ -21,8 +16,9 @@ class Ship {
     _ship = null
     _client = null
 
-    constructor(client, ship) {
+    constructor(client, universe, ship) {
         this._client = client
+        this._universe = universe
         this._ship = ship
     }
 
@@ -40,6 +36,7 @@ class Ship {
     get nav() { return this._ship.nav }
     get symbol() { return this._ship.symbol }
     get fuel() { return this._ship.fuel }
+    get engine() { return this._ship.engine }
 
     async extract() {
         await this.orbit()
@@ -287,12 +284,20 @@ class Ship {
         this._ship.cargo = cargo
     }
 
-    async refuel({ maxFuelMissing = 100 } = {}) {
+    // minimum_fuel_level: 'refuel to at least this level'
+    // maxFuelMissing: 'this is the maximum that can be missing after refueling'
+    async refuel({ maxFuelMissing = 100, minimum_fuel_level = 0 } = {}) {
         await this.wait_for_transit()
         console.log(JSON.stringify(this._ship.fuel))
+
+        if (minimum_fuel_level) {
+            maxFuelMissing = Math.min(maxFuelMissing, this._ship.fuel.capacity - minimum_fuel_level)
+        }
         let missing_fuel = 100 * Math.ceil(((this._ship.fuel.capacity - maxFuelMissing) - this._ship.fuel.current)/100)
         if (missing_fuel <= 0)
             return
+
+
         await this.dock()
         console.log(`Refueling ${this._ship.symbol}`)
         const url = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/refuel`
@@ -349,6 +354,24 @@ class Ship {
         this._ship.cargo = cargo
         console.log(JSON.stringify(construction))
         return construction        
+    }
+
+    async goto(target_waypoint_symbol) {
+        assert(this.is_in_transit() == false)
+        if (this._ship.nav.waypointSymbol == target_waypoint_symbol)
+            return
+        const route = await Pathfinding.generate_route(this._universe,
+            this._ship.nav.waypointSymbol,
+            target_waypoint_symbol,
+            { max_fuel: this.ship.fuel.capacity, engine_speed: this.ship.engine.speed, }
+        )
+        console.log('route:', route.map(x => x.dest))
+        for (const leg of route) {
+            await this.refuel({minimum_fuel_level: leg.fuel_cost})
+            await this.flight_mode(leg.flight_mode)
+            await this.navigate(leg.dest)
+            await this.wait_for_transit()
+        }
     }
 }
 

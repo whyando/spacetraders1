@@ -136,7 +136,7 @@ export default class Agent {
     }
 
     ship_controller(ship_symbol) {
-        return new Ship(this.client, this.ships[ship_symbol])
+        return new Ship(this.client, this.universe, this.ships[ship_symbol])
     }
 
     constructor(universe, faction, callsign) {

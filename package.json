@@ -21,6 +21,7 @@
     "testEnvironment": "node",
     "collectCoverage": true,
     "coverageReporters": ["text", "cobertura"],
+    "collectCoverageFrom": ["src/**/*.js"],    
     "transform": {}
   }
 }

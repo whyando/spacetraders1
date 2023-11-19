@@ -24,9 +24,9 @@ export default async function trading_script(universe, agent, ship, { system_sym
     const market_shared_state = Resource.get(`data/market_shared/${system_symbol}.json`, {})
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete'})
 
-    while (true) {
-        await ship.wait_for_transit()
+    await ship.wait_for_transit()
 
+    while (true) {
         if (mission.data.status == 'complete') {
             market_shared_state.data[ship.symbol] = []
             market_shared_state.save()
@@ -64,9 +64,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
         else if (mission.data.status == 'buy') {
             const { good, buy_location, sell_location } = mission.data
         
-            await ship.refuel({maxFuelMissing: 99})
-            await ship.navigate(buy_location.waypoint)
-            await ship.wait_for_transit()
+            await ship.goto(buy_location.waypoint)
             await universe.save_local_market(await ship.refresh_market())
 
             while (ship.cargo.units < ship.cargo.capacity) {
@@ -109,23 +107,9 @@ export default async function trading_script(universe, agent, ship, { system_sym
         else if (mission.data.status == 'sell') {
             const { good, sell_location } = mission.data
 
-            await ship.refuel({maxFuelMissing: 99})
-            // await ship.navigate(sell_location.waypoint)
-            {
-                const route = await Pathfinding.generate_route(universe, ship.nav.waypointSymbol, sell_location.waypoint,
-                    { max_fuel: ship.fuel.capacity }
-                )
-                console.log('route:', route)
-                throw new Error('not implemented')
-                // system
-                // from
-                // to
-                // current fuel level
-            }
-
-
-            await ship.wait_for_transit()
+            await ship.goto(sell_location.waypoint)
             await universe.save_local_market(await ship.refresh_market())
+
             while (ship.cargo.units > 0) {
                 const quantity = Math.min(ship.cargo.units, sell_location.tradeVolume)
                 const resp = await ship.sell_good(good, quantity)
@@ -197,7 +181,7 @@ const load_options = async (universe, ship_location) => {
         console.log(`${symbol}\t+$${good.profit}\t$${good.buy_price}/$${good.sell_price}\t${good.buy_waypoint} -> ${good.sell_waypoint}`)
     })
     return options
-        .filter(([symbol, good]) => good.profit >= 1)
+        .filter(([symbol, good]) => good.profit >= 500)
         .map(([symbol, good]) => ({
             good: symbol,
             profit: good.profit,

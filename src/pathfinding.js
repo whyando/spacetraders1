@@ -10,13 +10,27 @@ import { sys } from './util.js'
 import assert from 'assert'
 import dijkstra from 'dijkstrajs'
 
+// https://github.com/SpaceTradersAPI/api-docs/wiki/Travel-Fuel-and-Time
+function flight_duration(distance, engineSpeed, flight_mode) {
+    const flight_mode_modifiers = {
+        CRUISE: 25,
+        DRIFT: 250,
+        BURN: 7.5,      // * unconfirmed
+        STEALTH: 30,    // * unconfirmed
+    }
+    const multiplier = flight_mode_modifiers[flight_mode]
+    assert(multiplier, `unknown flight mode ${flight_mode}`)
+    return Math.round(distance * (multiplier / engineSpeed) + 15)
+}
+
 class Pathinding {
     static async generate_route(universe, src_waypoint, dest_waypoint, {
-        max_fuel = 99,
+        max_fuel,
+        engine_speed,
         // Only applied if SRC or DEST are not MARKETPLACE waypoints
         initial_leg_max_fuel_ratio = 0.5,
         final_leg_max_fuel_ratio = 0.5,
-    } = {}) {
+    }) {
         const system_waypoint = sys(src_waypoint)
         assert.equal(system_waypoint, sys(dest_waypoint), 'cannot generate inter-system routes')
         assert.notEqual(src_waypoint, dest_waypoint, 'cannot generate zero-length routes')
@@ -33,7 +47,7 @@ class Pathinding {
                 if (x == y) continue
                 const distance = Math.max(Math.round(Math.sqrt((x.x - y.x)**2 + (x.y - y.y)**2)), 1)
                 const fuel_cost = distance
-                const duration = Math.max(Math.round(distance / 10), 1)
+                const duration = flight_duration(distance, engine_speed, 'CRUISE')
                 if (fuel_cost > max_fuel) continue
                 graph[x.symbol][y.symbol] = duration
             }
@@ -49,7 +63,7 @@ class Pathinding {
             for (const x of market_waypoints) {
                 const distance = Math.max(Math.round(Math.sqrt((src.x - x.x)**2 + (src.y - x.y)**2)), 1)
                 const fuel_cost = distance
-                const duration = Math.max(Math.round(distance / 10), 1)
+                const duration = flight_duration(distance, engine_speed, 'CRUISE')
                 if (fuel_cost > max_fuel * initial_leg_max_fuel_ratio) continue
                 graph[src.symbol][x.symbol] = duration
             }
@@ -58,7 +72,7 @@ class Pathinding {
             for (const x of market_waypoints) {
                 const distance = Math.max(Math.round(Math.sqrt((dest.x - x.x)**2 + (dest.y - x.y)**2)), 1)
                 const fuel_cost = distance
-                const duration = Math.max(Math.round(distance / 10), 1)
+                const duration = flight_duration(distance, engine_speed, 'CRUISE')
                 if (fuel_cost > max_fuel * final_leg_max_fuel_ratio) continue
                 graph[x.symbol][dest.symbol] = duration
             }
@@ -66,7 +80,7 @@ class Pathinding {
         if (!src_is_market && !dest_is_market) {
             const distance = Math.max(Math.round(Math.sqrt((src.x - dest.x)**2 + (src.y - dest.y)**2)), 1)
             const fuel_cost = distance
-            const duration = Math.max(Math.round(distance / 10), 1)
+            const duration = flight_duration(distance, engine_speed, 'CRUISE')
             const fuel_bound = Math.min(max_fuel * final_leg_max_fuel_ratio, max_fuel * initial_leg_max_fuel_ratio)
             if (fuel_cost <= fuel_bound) {
                 graph[src.symbol][dest.symbol] = duration
@@ -76,10 +90,22 @@ class Pathinding {
         const path = dijkstra.find_path(graph, src_waypoint, dest_waypoint)
         const steps = []
         for (let i = 1; i < path.length; i++) {
-            const src = path[i-1]
-            const dest = path[i]
-            const duration = graph[src][dest]
-            steps.push({ src, dest, duration })
+            const src_waypoint_symbol = path[i-1]
+            const dest_waypoint_symbol = path[i]
+            const src = system.waypoints.find(w => w.symbol == src_waypoint_symbol)
+            const dest = system.waypoints.find(w => w.symbol == dest_waypoint_symbol)
+            const distance = Math.max(Math.round(Math.sqrt((src.x - dest.x)**2 + (src.y - dest.y)**2)), 1)
+            const fuel_cost = distance
+            const duration = flight_duration(distance, engine_speed, 'CRUISE')
+            assert.equal(duration, graph[src_waypoint_symbol][dest_waypoint_symbol])
+            steps.push({
+                src: src_waypoint_symbol,
+                dest: dest_waypoint_symbol,
+                flight_mode: 'CRUISE',
+                distance,
+                duration,
+                fuel_cost
+            })
         }
         return steps
     }
