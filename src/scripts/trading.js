@@ -83,7 +83,8 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 }
                 console.log(`credits: $${agent.credits}`)
                 const available_credits = agent.credits - RESERVED_CREDITS
-                const quantity = Math.min(ship.cargo.capacity - ship.cargo.units, buy_location.tradeVolume, Math.floor(available_credits / purchasePrice))
+                const ideal_quantity = Math.min(ship.cargo.capacity, 4 * buy_location.tradeVolume, 4 * sell_location.tradeVolume)
+                const quantity = Math.min(ideal_quantity - ship.cargo.units, buy_location.tradeVolume, Math.floor(available_credits / purchasePrice))
                 if (quantity <= 0) {
                     console.log('not enough credits to fill cargo')
                     break

@@ -2,8 +2,7 @@ import Universe from './src/universe.js'
 
 const universe = await Universe.load()
 
-// const system_symbol = 'X1-YH15'
-const system_symbol = 'X1-YY89'
+const system_symbol = 'X1-DM98'
 const system = await universe.get_system(system_symbol)
 
 const goods = {}
@@ -78,18 +77,39 @@ const type_map = {
     EXCHANGE: 3,
 }
 
-for (const [symbol, trades] of Object.entries(goods)) {
-    trades.sort((a, b) => type_map[a.type] - type_map[b.type])
-    console.log(`${symbol}:`)
-    console.table(trades, ['market', 'tradeVolume', 'type', 'supply', 'activity', 'purchasePrice', 'sellPrice'])
+// for (const [symbol, trades] of Object.entries(goods)) {
+//     trades.sort((a, b) => type_map[a.type] - type_map[b.type])
+//     console.log(`${symbol}:`)
+//     console.table(trades, ['market', 'tradeVolume', 'type', 'supply', 'activity', 'purchasePrice', 'sellPrice'])
+// }
+
+const linear_chain = ['LIQUID_NITROGEN', 'FERTILIZERS', 'FABRICS', 'CLOTHING']
+
+for (let i = 1; i < linear_chain.length; i++) {
+    for (const w of system.waypoints) {
+        const is_market = w.traits.some(t => t.symbol == 'MARKETPLACE')
+        if (!is_market) continue    
+        const market = await universe.get_local_market(w.symbol)
+        if (!market) continue
+        if (!market.tradeGoods)
+            throw new Error(`no trade goods at ${w.symbol}`)
+        
+        const is_import = market.imports.some(x => x.symbol == linear_chain[i-1])
+        const is_export = market.exports.some(x => x.symbol == linear_chain[i])
+        if (!is_import || !is_export) continue
+
+        console.log(`${linear_chain[i-1]} -> ${linear_chain[i]} at ${w.symbol}`)
+        const import_good = {
+            market: w.symbol,
+            ...market.tradeGoods.find(x => x.symbol == linear_chain[i-1])
+        }
+        const export_good = {
+            market: w.symbol,
+            ...market.tradeGoods.find(x => x.symbol == linear_chain[i])
+        }
+        delete import_good['purchasePrice']
+        delete export_good['sellPrice']
+
+        console.table([import_good, export_good], ['symbol', 'market', 'tradeVolume', 'type', 'supply', 'activity', 'purchasePrice', 'sellPrice'])
+    }
 }
-
-// console.log('exports')
-// console.table(exports)
-
-// console.log('imports')
-// console.table(imports)
-
-// console.log('exchanges')
-// console.table(exchanges)
-
