@@ -45,7 +45,7 @@ class Pathinding {
         const src_is_market = src.traits.some(t => t.symbol == 'MARKETPLACE')
         const dest_is_market = dest.traits.some(t => t.symbol == 'MARKETPLACE')
         if (!src_is_market) {
-            if (!graph[src.symbol]) graph[src.symbol] = {}
+            graph[src.symbol] = {}
             for (const x of market_waypoints) {
                 const distance = Math.max(Math.round(Math.sqrt((src.x - x.x)**2 + (src.y - x.y)**2)), 1)
                 const fuel_cost = distance

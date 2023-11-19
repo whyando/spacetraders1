@@ -44,5 +44,17 @@ describe('Pathfinding', () => {
         assert(route[0].src === srcWaypoint);
         assert(route[route.length - 1].dest === destWaypoint);
     });
+
+    it('generates a valid route between two non-market waypoints - direct', async () => {
+        const srcWaypoint = 'X1-S1-A';
+        const destWaypoint = 'X1-S1-E';
+
+        const route = await Pathfinding.generate_route(mockUniverse, srcWaypoint, destWaypoint, { max_fuel: 1000 });
+
+        assert(Array.isArray(route));
+        assert(route.length > 0);
+        assert(route[0].src === srcWaypoint);
+        assert(route[route.length - 1].dest === destWaypoint);
+    });
 });
 

@@ -2,3 +2,4 @@ data
 data-*
 node_modules
 *.log
+coverage
