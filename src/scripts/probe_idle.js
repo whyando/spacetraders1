@@ -27,6 +27,7 @@ export default async function probe_idle_script(universe, probe, { waypoint_symb
             if (delay <= 0) {
                 // console.log(`Refreshing market ${waypoint_symbol}`)
                 await universe.save_local_market(await probe.refresh_market())
+                continue
             } else {
                 // console.log(`Sleeping for ${delay}ms before refreshing market ${waypoint_symbol}`)
                 sleep_duration = Math.min(sleep_duration, delay)
@@ -40,6 +41,7 @@ export default async function probe_idle_script(universe, probe, { waypoint_symb
             if (delay <= 0) {
                 // console.log(`Refreshing shipyard ${waypoint_symbol}`)
                 await universe.save_local_shipyard(await probe.refresh_shipyard())
+                continue
             } else {
                 // console.log(`Sleeping for ${delay}ms before refreshing shipyard ${waypoint_symbol}`)
                 sleep_duration = Math.min(sleep_duration, delay)

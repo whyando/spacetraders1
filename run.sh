@@ -3,8 +3,9 @@
 # Run `node .` , restarting it if it crashes.
 # route output to append run.log
 
-CMD="node src THE-VOID AD-ASTRA ROQUE WHYANDO"
+# CMD="node src THE-VOID AD-ASTRA ROQUE WHYANDO"
 # CMD="node src THE-VOID AD-ASTRA ROQUE"
+CMD="node src WHYANDO"
 
 until $CMD &>> run.log; do
     # print date
