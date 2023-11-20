@@ -141,7 +141,7 @@ async function run_agent(universe, agent_config) {
     })
 
     // Set spec
-    // stage_runner.data.spec.stage = 'C'
+    stage_runner.data.spec.stage = 'C'
     const probe_waypoints = new Set()
     const jobs = {}
     const { stage } = stage_runner.data.spec
@@ -153,17 +153,17 @@ async function run_agent(universe, agent_config) {
             probe_waypoints.add(s.symbol)
         }        
     }
-    // for (const waypoint of probe_waypoints) {
-    //     const id = `idle_probe/${waypoint}`
-    //     jobs[id] = {
-    //         type: 'idle_probe',
-    //         ship_type: 'SHIP_PROBE',
-    //         params: {
-    //             waypoint_symbol: waypoint,
-    //         },
-    //         priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
-    //     }
-    // }
+    for (const waypoint of probe_waypoints) {
+        const id = `idle_probe/${waypoint}`
+        jobs[id] = {
+            type: 'idle_probe',
+            ship_type: 'SHIP_PROBE',
+            params: {
+                waypoint_symbol: waypoint,
+            },
+            priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
+        }
+    }
     // for (let i = 1; i <= 5; i++) {
     //     jobs[`trading/${system_symbol}/${i}`] = {
     //         type: 'trading',
@@ -325,7 +325,7 @@ async function run_agent(universe, agent_config) {
         const ship = agent.ship_controller(status.ship)
         // console.log(`Running job ${job_id} for ship ${ship.symbol}`)
         if (job.type == 'idle_probe') {
-            //p.push(probe_idle_script(universe, ship, job.params))
+            p.push(probe_idle_script(universe, ship, job.params))
         } else if (job.type == 'trading') {
             //p.push(trading_script(universe, agent.agent, ship, job.params))
         } else if (job.type == 'gate_builder') {
@@ -350,8 +350,8 @@ async function run_agent(universe, agent_config) {
     p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
     // p.push(contract_script(universe, agent, cmd_ship))
 
-    const probe = agent.ship_controller(`${callsign}-2`)   
-    p.push(market_probe_script(universe, probe, { system_symbol }))
+    // const probe = agent.ship_controller(`${callsign}-2`)   
+    // p.push(market_probe_script(universe, probe, { system_symbol }))
     // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
 
     const probe_3 = agent.ship_controller(`${callsign}-3`)
@@ -360,11 +360,11 @@ async function run_agent(universe, agent_config) {
     const probe_f = agent.ship_controller(`${callsign}-F`)
     const probe_10 = agent.ship_controller(`${callsign}-10`)
 
-    p.push(probe_idle_script(universe, probe_3, { waypoint_symbol: 'X1-DM98-G52' })) // market: nitrogen -> fertilizer
-    p.push(probe_idle_script(universe, probe_d, { waypoint_symbol: 'X1-DM98-E46' })) // market: fertilizer -> fabrics
-    p.push(probe_idle_script(universe, probe_e, { waypoint_symbol: 'X1-DM98-K84' })) // market: fabrics -> clothing
-    p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
-    p.push(probe_idle_script(universe, probe_10, { waypoint_symbol: 'X1-DM98-C39' })) // shipyard for siphon drones
+    // p.push(probe_idle_script(universe, probe_3, { waypoint_symbol: 'X1-DM98-G52' })) // market: nitrogen -> fertilizer
+    // p.push(probe_idle_script(universe, probe_d, { waypoint_symbol: 'X1-DM98-E46' })) // market: fertilizer -> fabrics
+    // p.push(probe_idle_script(universe, probe_e, { waypoint_symbol: 'X1-DM98-K84' })) // market: fabrics -> clothing
+    // p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
+    // p.push(probe_idle_script(universe, probe_10, { waypoint_symbol: 'X1-DM98-C39' })) // shipyard for siphon drones
 
     for (const s of Object.values(agent.ships)) {
         const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')

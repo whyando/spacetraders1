@@ -181,7 +181,7 @@ const load_options = async (universe, ship_location) => {
         console.log(`${symbol}\t+$${good.profit}\t$${good.buy_price}/$${good.sell_price}\t${good.buy_waypoint} -> ${good.sell_waypoint}`)
     })
     return options
-        .filter(([symbol, good]) => good.profit >= 500)
+        .filter(([symbol, good]) => good.profit >= 100)
         .map(([symbol, good]) => ({
             good: symbol,
             profit: good.profit,

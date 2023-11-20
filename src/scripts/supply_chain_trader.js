@@ -38,8 +38,8 @@ async function step(universe, agent, ship, { work_markets }) {
             const step = (mission.data.step + di) % LINEAR_CHAIN.length
             console.log('picking new mission, step', step)
             const options = await load_options(universe, ship.nav.systemSymbol, work_markets, step)
-            const buy = options.buy.filter(x => supply_map[x.supply] >= 3 && x.activity != 'RESTRICTED')
-            const sell = options.sell.filter(x => supply_map[x.supply] <= 3 && x.activity != 'RESTRICTED')
+            const buy = options.buy.filter(x => supply_map[x.supply] >= 3) // && x.activity != 'RESTRICTED')
+            const sell = options.sell.filter(x => supply_map[x.supply] <= 3) // && x.activity != 'RESTRICTED')
             console.log(`After filters: ${buy.length} buy options, ${sell.length} sell options`)
             if (buy.length == 0 || sell.length == 0) {
                 console.log(`failed to transfer ${LINEAR_CHAIN[step]}`)
