@@ -68,9 +68,12 @@ export default async function trading_script(universe, agent, ship, { system_sym
 
             while (ship.cargo.units < ship.cargo.capacity) {
                 const market = await universe.get_local_market(buy_location.waypoint)
-                const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == good)
+                const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == good)
                 if (purchasePrice != buy_location.purchasePrice) {
                     console.log(`warning: purchase price changed ${buy_location.purchasePrice} -> ${purchasePrice}`)
+                    if (tradeVolume != buy_location.tradeVolume) {
+                        console.log(`warning: trade volume changed ${buy_location.tradeVolume} -> ${tradeVolume}`)
+                    }
                     if (purchasePrice > 0.5*(buy_location.purchasePrice + sell_location.sellPrice)) {
                         console.log('not buying anymore - price too high')
                         break
@@ -82,8 +85,8 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 }
                 console.log(`credits: $${agent.credits}`)
                 const available_credits = agent.credits - RESERVED_CREDITS
-                const ideal_quantity = Math.min(ship.cargo.capacity, 4 * buy_location.tradeVolume, 4 * sell_location.tradeVolume)
-                const quantity = Math.min(ideal_quantity - ship.cargo.units, buy_location.tradeVolume, Math.floor(available_credits / purchasePrice))
+                const ideal_quantity = Math.min(ship.cargo.capacity, 4 * tradeVolume, 4 * sell_location.tradeVolume)
+                const quantity = Math.min(ideal_quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))
                 if (quantity <= 0) {
                     console.log('not enough credits to fill cargo')
                     break
@@ -110,8 +113,14 @@ export default async function trading_script(universe, agent, ship, { system_sym
             await ship.goto(sell_location.waypoint)
             await universe.save_local_market(await ship.refresh_market())
 
+            const market = await universe.get_local_market(sell_location.waypoint)
+            const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == good)
+            if (tradeVolume != sell_location.tradeVolume) {
+                console.log(`warning: trade volume changed ${sell_location.tradeVolume} -> ${tradeVolume}`)
+            }
+
             while (ship.cargo.units > 0) {
-                const quantity = Math.min(ship.cargo.units, sell_location.tradeVolume)
+                const quantity = Math.min(ship.cargo.units, tradeVolume)
                 const resp = await ship.sell_good(good, quantity)
                 Object.assign(agent, resp.agent)
                 await universe.save_local_market(await ship.refresh_market())

@@ -1,7 +1,7 @@
 import { sys } from '../util.js'
 
-const MARKET_REFRESH_INTERVAL = 15 * 60 * 1000
-const SHIPYARD_REFRESH_INTERVAL = 15 * 60 * 1000
+const MARKET_REFRESH_INTERVAL = Math.round(7.9 * 60 * 1000)
+const SHIPYARD_REFRESH_INTERVAL = 30 * 60 * 1000
 
 export default async function probe_idle_script(universe, probe, { waypoint_symbol }) {
     const system = await universe.get_system(sys(waypoint_symbol))

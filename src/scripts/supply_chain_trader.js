@@ -67,7 +67,10 @@ async function step(universe, agent, ship, { work_markets }) {
 
         while (ship.cargo.units < ship.cargo.capacity) {
             const market = await universe.get_local_market(buy_good.market)
-            const { purchasePrice, supply } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
+            const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
+            if (tradeVolume != buy_good.tradeVolume) {
+                console.log(`warning: trade volume changed ${buy_good.tradeVolume} -> ${tradeVolume}`)
+            }
             if (purchasePrice != buy_good.purchasePrice) {
                 console.log(`warning: purchase price changed ${buy_good.purchasePrice} -> ${purchasePrice}`)
                 if (purchasePrice > sell_good.sellPrice) {
@@ -81,8 +84,8 @@ async function step(universe, agent, ship, { work_markets }) {
             }
             console.log('credits: ', agent.credits)
             const available_credits = agent.credits - RESERVED_CREDITS
-            const ideal_quantity = Math.min(ship.cargo.capacity, 4 * buy_good.tradeVolume, 4 * sell_good.tradeVolume)
-            const quantity = Math.min(ideal_quantity - ship.cargo.units, buy_good.tradeVolume, Math.floor(available_credits / purchasePrice))
+            const ideal_quantity = Math.min(ship.cargo.capacity, 4 * tradeVolume, 4 * sell_good.tradeVolume)
+            const quantity = Math.min(ideal_quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))
             if (quantity <= 0) {
                 break
             }
@@ -108,6 +111,9 @@ async function step(universe, agent, ship, { work_markets }) {
         while (ship.cargo.units > 0) {
             const market = await universe.get_local_market(sell_good.market)
             const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == sell_good.symbol)
+            if (tradeVolume != sell_good.tradeVolume) {
+                console.log(`warning: trade volume changed ${sell_good.tradeVolume} -> ${tradeVolume}`)
+            }
 
             const quantity = Math.min(ship.cargo.units, tradeVolume)
             const resp = await ship.sell_good(sell_good.symbol, quantity)
