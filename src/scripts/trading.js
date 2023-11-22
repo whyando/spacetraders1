@@ -3,6 +3,7 @@ import assert from 'assert'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
 
+const TRADE_VOLUME_MULTIPLIER = 2
 const RESERVED_CREDITS = 20000
 
 const supply_map = {
@@ -35,12 +36,22 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 throw new Error('cargo not empty')
             }
 
-            const options = await load_options(universe, ship.nav.waypointSymbol)
+            const options = await load_options(universe, ship.nav.waypointSymbol, ship.cargo.capacity)
             const filtered = options.filter(x => {
-                const buy_key = `buy/${x.buy_location.waypoint}/${x.good}` 
-                const sell_key = `sell/${x.sell_location.waypoint}/${x.good}`
-                const locks = Object.values(market_shared_state.data).flat()
-                return !locks.includes(buy_key) && !locks.includes(sell_key)
+                const buy_key = `${x.buy_location.waypoint}/${x.good}` 
+                const sell_key = `${x.sell_location.waypoint}/${x.good}`
+                // flow condition should be based on supply also?
+                const buy_flow = Object.values(market_shared_state.data).map(x => x[buy_key] ?? 0).reduce((a, b) => a + b, 0)
+                const sell_flow = Object.values(market_shared_state.data).map(x => x[sell_key] ?? 0).reduce((a, b) => a + b, 0)
+                if (buy_flow - x.quantity < -TRADE_VOLUME_MULTIPLIER * x.buy_location.tradeVolume) {
+                    console.log(`skipping ${x.good} due to existing buy flow: ${buy_flow}`)
+                    return false
+                }
+                if (sell_flow + x.quantity > TRADE_VOLUME_MULTIPLIER * x.sell_location.tradeVolume) {
+                    console.log(`skipping ${x.good} due to existing sell flow: ${sell_flow}`)
+                    return false
+                }
+                return true
             })
             console.log(`Filtered ${options.length} options down to ${filtered.length} options due to market locks`)
             const filtered2 = filtered.filter(x => should_buy(x.good, x.buy_location))
@@ -56,17 +67,20 @@ export default async function trading_script(universe, agent, ship, { system_sym
             const expected_profit = target.profit * ship.cargo.capacity
             console.log(`expected profit: +$${expected_profit}`)
             mission.data = { ...target, status: 'buy' }
-            market_shared_state.data[ship.symbol] = [`buy/${target.buy_location.waypoint}/${target.good}`, `sell/${target.sell_location.waypoint}/${target.good}`]
+            market_shared_state.data[ship.symbol] = {
+                [`${target.buy_location.waypoint}/${target.good}`]: -target.quantity,
+                [`${target.sell_location.waypoint}/${target.good}`]: target.quantity,
+            }
             market_shared_state.save()
             mission.save()
         }
         else if (mission.data.status == 'buy') {
-            const { good, buy_location, sell_location } = mission.data
+            const { good, quantity, buy_location, sell_location } = mission.data
         
             await ship.goto(buy_location.waypoint)
             await universe.save_local_market(await ship.refresh_market())
 
-            while (ship.cargo.units < ship.cargo.capacity) {
+            while (quantity != ship.cargo.units) {
                 const market = await universe.get_local_market(buy_location.waypoint)
                 const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == good)
                 if (purchasePrice != buy_location.purchasePrice) {
@@ -85,24 +99,25 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 }
                 console.log(`credits: $${agent.credits}`)
                 const available_credits = agent.credits - RESERVED_CREDITS
-                const ideal_quantity = Math.min(ship.cargo.capacity, 4 * tradeVolume, 4 * sell_location.tradeVolume)
-                const quantity = Math.min(ideal_quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))
-                if (quantity <= 0) {
-                    console.log('not enough credits to fill cargo')
+                const units = Math.min(quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))
+                if (units <= 0) {
+                    console.log(`couldnt fill up to target quantity ${ship.cargo.units}/${quantity}`)
                     break
                 }
-                const resp = await ship.buy_good(good, quantity)
+                const resp = await ship.buy_good(good, units)
                 await universe.save_local_market(await ship.refresh_market())
                 Object.assign(agent, resp.agent)
             }
             const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
             if (holding <= 0) {
+                market_shared_state.data[ship.symbol] = {}
+                market_shared_state.save()
                 console.log('warning: no cargo after buy... aborting mission')
                 mission.data.status = 'complete'
                 mission.save()
                 continue
             }
-            market_shared_state.data[ship.symbol] = [`sell/${sell_location.waypoint}/${good}`]
+            delete market_shared_state.data[ship.symbol][`${buy_location.waypoint}/${good}`]
             market_shared_state.save()
             mission.data.status = 'sell'
             mission.save()
@@ -125,17 +140,17 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 Object.assign(agent, resp.agent)
                 await universe.save_local_market(await ship.refresh_market())
             }
-            mission.data.status = 'complete'
-            mission.save()            
-            market_shared_state.data[ship.symbol] = []
+            market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
+            mission.data.status = 'complete'
+            mission.save()
         } else {
             throw new Error(`unknown mission status: ${mission.status}`)
         }
     }
 }
 
-const load_options = async (universe, ship_location) => {
+const load_options = async (universe, ship_location, cargo_size) => {
     const system = await universe.get_system(sys(ship_location))
     const current_waypoint = system.waypoints.find(w => w.symbol == ship_location)
 
@@ -193,6 +208,7 @@ const load_options = async (universe, ship_location) => {
         .filter(([symbol, good]) => good.profit >= 100)
         .map(([symbol, good]) => ({
             good: symbol,
+            quantity: Math.min(TRADE_VOLUME_MULTIPLIER * good.buy_trade_volume, TRADE_VOLUME_MULTIPLIER * good.sell_trade_volume, cargo_size),
             profit: good.profit,
             buy_location: {
                 waypoint: good.buy_waypoint,

@@ -3,6 +3,7 @@ import assert from 'assert'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
 
+const TRADE_VOLUME_MULTIPLIER = 2
 const RESERVED_CREDITS = 20000
 
 const supply_map = {
@@ -31,6 +32,11 @@ export default async function supply_chain_trader(universe, agent, ship) {
 }
 
 async function step(universe, agent, ship, { work_markets }) {
+    const market_shared_state = Resource.get(`data/market_shared/${ship.nav.systemSymbol}.json`, {})
+    if (!market_shared_state.data[ship.symbol]) {
+        market_shared_state.data[ship.symbol] = {}
+        market_shared_state.save()
+    }
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete', step: 0 })
 
     if (mission.data.status == 'complete') {
@@ -48,8 +54,31 @@ async function step(universe, agent, ship, { work_markets }) {
             // pick random buy and sell
             const buy_good = buy[Math.floor(Math.random() * buy.length)]
             const sell_good = sell[Math.floor(Math.random() * sell.length)]
+            const quantity = Math.min(TRADE_VOLUME_MULTIPLIER * buy_good.tradeVolume, TRADE_VOLUME_MULTIPLIER * sell_good.tradeVolume, ship.cargo.capacity)
+            
+            // check flow condition
+            const buy_key = `${buy_good.market}/${buy_good.symbol}`
+            const sell_key = `${sell_good.market}/${sell_good.symbol}`
+            // flow condition should be based on supply also?
+            const buy_flow = Object.values(market_shared_state.data).map(x => x[buy_key] ?? 0).reduce((a, b) => a + b, 0)
+            const sell_flow = Object.values(market_shared_state.data).map(x => x[sell_key] ?? 0).reduce((a, b) => a + b, 0)
+            if (buy_flow - quantity < -TRADE_VOLUME_MULTIPLIER * buy_good.tradeVolume) {
+                console.log(`skipping ${buy_good.symbol} due to existing buy flow: ${buy_flow} at ${buy_good.market}`)
+                continue
+            }
+            if (sell_flow + quantity > TRADE_VOLUME_MULTIPLIER * sell_good.tradeVolume) {
+                console.log(`skipping ${buy_good.symbol} due to existing sell flow: ${sell_flow} at ${sell_good.market}`)
+                continue
+            }
+
+            market_shared_state.data[ship.symbol] = {
+                [buy_key]: -quantity,
+                [sell_key]: quantity,
+            }
+            market_shared_state.save()
             mission.data = {
                 status: 'buy',
+                quantity,
                 buy_good,
                 sell_good,
                 step: step,
@@ -96,10 +125,13 @@ async function step(universe, agent, ship, { work_markets }) {
         const holding = ship.cargo.inventory.find(g => g.symbol == buy_good.symbol)?.units ?? 0
         if (holding <= 0) {
             console.log('warning: no cargo after buy... aborting mission')
+            market_shared_state.data[ship.symbol] = {}
+            market_shared_state.save()
             mission.data.status = 'complete'
             return mission.save()
         }
-
+        delete market_shared_state.data[ship.symbol][`${buy_good.market}/${buy_good.symbol}`]
+        market_shared_state.save()
         mission.data.status = 'sell'
         return mission.save()
     } else if (mission.data.status == 'sell') {
@@ -120,6 +152,8 @@ async function step(universe, agent, ship, { work_markets }) {
             Object.assign(agent.agent, resp.agent)
             await universe.save_local_market(await ship.refresh_market())
         }
+        market_shared_state.data[ship.symbol] = {}
+        market_shared_state.save()
         mission.data.status = 'complete'
         return mission.save()
     } else {
