@@ -3,8 +3,25 @@ import assert from 'assert'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
 
-const TRADE_VOLUME_MULTIPLIER = 2
 const RESERVED_CREDITS = 20000
+
+const target_buy_flow = (supply, trade_volume) => {
+    if (supply == 'ABUNDANT') return 3 * trade_volume
+    if (supply == 'HIGH') return 2 * trade_volume
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') throw new Error('not buying limited')
+    if (supply == 'SCARCE') throw new Error('not buying scarce')
+    throw new Error(`unknown supply: ${supply}`)
+}
+
+const target_sell_flow = (supply, trade_volume) => {
+    if (supply == 'ABUNDANT') throw new Error('not selling abundant')
+    if (supply == 'HIGH') throw new Error('not selling high')
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') return 2 * trade_volume
+    if (supply == 'SCARCE') return 3 * trade_volume
+    throw new Error(`unknown supply: ${supply}`)
+}
 
 const supply_map = {
     'ABUNDANT': 5,
@@ -54,19 +71,21 @@ async function step(universe, agent, ship, { work_markets }) {
             // pick random buy and sell
             const buy_good = buy[Math.floor(Math.random() * buy.length)]
             const sell_good = sell[Math.floor(Math.random() * sell.length)]
-            const quantity = Math.min(TRADE_VOLUME_MULTIPLIER * buy_good.tradeVolume, TRADE_VOLUME_MULTIPLIER * sell_good.tradeVolume, ship.cargo.capacity)
+            const quantity = Math.min(
+                target_buy_flow(buy_good.supply, buy_good.tradeVolume),
+                target_sell_flow(sell_good.supply, sell_good.tradeVolume),
+                ship.cargo.capacity)
             
             // check flow condition
             const buy_key = `${buy_good.market}/${buy_good.symbol}`
             const sell_key = `${sell_good.market}/${sell_good.symbol}`
-            // flow condition should be based on supply also?
             const buy_flow = Object.values(market_shared_state.data).map(x => x[buy_key] ?? 0).reduce((a, b) => a + b, 0)
             const sell_flow = Object.values(market_shared_state.data).map(x => x[sell_key] ?? 0).reduce((a, b) => a + b, 0)
-            if (buy_flow - quantity < -TRADE_VOLUME_MULTIPLIER * buy_good.tradeVolume) {
+            if (buy_flow - quantity < -1 * target_buy_flow(buy_good.supply, buy_good.tradeVolume)) {
                 console.log(`skipping ${buy_good.symbol} due to existing buy flow: ${buy_flow} at ${buy_good.market}`)
                 continue
             }
-            if (sell_flow + quantity > TRADE_VOLUME_MULTIPLIER * sell_good.tradeVolume) {
+            if (sell_flow + quantity > target_sell_flow(sell_good.supply, sell_good.tradeVolume)) {
                 console.log(`skipping ${buy_good.symbol} due to existing sell flow: ${sell_flow} at ${sell_good.market}`)
                 continue
             }
@@ -89,12 +108,12 @@ async function step(universe, agent, ship, { work_markets }) {
         return await new Promise(r => setTimeout(r, 1000*60*3))
     }
     else if (mission.data.status == 'buy') {
-        const { buy_good, sell_good } = mission.data
+        const { buy_good, sell_good, quantity } = mission.data
 
         await ship.goto(buy_good.market)
         await universe.save_local_market(await ship.refresh_market())
 
-        while (ship.cargo.units < ship.cargo.capacity) {
+        while (quantity != ship.cargo.units) {
             const market = await universe.get_local_market(buy_good.market)
             const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
             if (tradeVolume != buy_good.tradeVolume) {
@@ -113,12 +132,12 @@ async function step(universe, agent, ship, { work_markets }) {
             }
             console.log('credits: ', agent.credits)
             const available_credits = agent.credits - RESERVED_CREDITS
-            const ideal_quantity = Math.min(ship.cargo.capacity, 4 * tradeVolume, 4 * sell_good.tradeVolume)
-            const quantity = Math.min(ideal_quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))
-            if (quantity <= 0) {
+            const units = Math.min(quantity - ship.cargo.units, tradeVolume, Math.floor(available_credits / purchasePrice))            
+            if (units <= 0) {
+                console.log(`couldnt fill up to target quantity ${ship.cargo.units}/${quantity}`)
                 break
             }
-            const resp = await ship.buy_good(buy_good.symbol, quantity)
+            const resp = await ship.buy_good(buy_good.symbol, units)
             await universe.save_local_market(await ship.refresh_market())
             Object.assign(agent.agent, resp.agent)
         }

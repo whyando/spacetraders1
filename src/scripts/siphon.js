@@ -5,6 +5,14 @@ import { sys } from '../util.js'
 import Resource from '../resource.js'
 import Pathfinding from '../pathfinding.js'
 
+const supply_map = {
+    'ABUNDANT': 5,
+    'HIGH': 4,
+    'MODERATE': 3,
+    'LIMITED': 2,
+    'SCARCE': 1,
+}
+
 async function get_import_market(universe, systemSymbol, target_imports) {
     const system = await universe.get_system(systemSymbol)
 
@@ -54,9 +62,26 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
         }
         await ship.goto(siphon_location)
         await ship.siphon()
-        // jettison non- 'LIQUID_NITROGEN'
+
+        const market = await universe.get_local_market(sell_location)
+        const trade_volume_target = {
+            'HYDROCARBON': 80,
+            'LIQUID_HYDROGEN': 80,
+            'LIQUID_NITROGEN': 999999999,
+        }
         for (const item of ship.cargo.inventory) {
-            if (item.symbol == 'HYDROCARBON' || item.symbol == 'LIQUID_HYDROGEN') {
+            const good = market.tradeGoods.find(g => g.symbol == item.symbol)
+            assert(good)
+            // would be better to update these conditions less frequently, since
+            // we might end up toggling jettison on and off a lot
+            let is_jettison = true
+            if (good.tradeVolume < trade_volume_target[item.symbol]) {
+                is_jettison = (supply_map[good.supply] > 3)
+            }
+            else if (good.tradeVolume == trade_volume_target[item.symbol]) {
+                is_jettison = (supply_map[good.supply] > 2)
+            }
+            if (is_jettison) {
                 await ship.jettison(item.symbol, item.units)
             }
         }

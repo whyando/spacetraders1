@@ -3,8 +3,25 @@ import assert from 'assert'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
 
-const TRADE_VOLUME_MULTIPLIER = 2
 const RESERVED_CREDITS = 20000
+
+const target_buy_flow = (supply, trade_volume) => {
+    if (supply == 'ABUNDANT') return 3 * trade_volume
+    if (supply == 'HIGH') return 2 * trade_volume
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') throw new Error('not buying limited')
+    if (supply == 'SCARCE') throw new Error('not buying scarce')
+    throw new Error(`unknown supply: ${supply}`)
+}
+
+const target_sell_flow = (supply, trade_volume) => {
+    if (supply == 'ABUNDANT') throw new Error('not selling abundant')
+    if (supply == 'HIGH') throw new Error('not selling high')
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') return 2 * trade_volume
+    if (supply == 'SCARCE') return 3 * trade_volume
+    throw new Error(`unknown supply: ${supply}`)
+}
 
 const supply_map = {
     'ABUNDANT': 5,
@@ -40,14 +57,13 @@ export default async function trading_script(universe, agent, ship, { system_sym
             const filtered = options.filter(x => {
                 const buy_key = `${x.buy_location.waypoint}/${x.good}` 
                 const sell_key = `${x.sell_location.waypoint}/${x.good}`
-                // flow condition should be based on supply also?
                 const buy_flow = Object.values(market_shared_state.data).map(x => x[buy_key] ?? 0).reduce((a, b) => a + b, 0)
                 const sell_flow = Object.values(market_shared_state.data).map(x => x[sell_key] ?? 0).reduce((a, b) => a + b, 0)
-                if (buy_flow - x.quantity < -TRADE_VOLUME_MULTIPLIER * x.buy_location.tradeVolume) {
+                if (buy_flow - x.quantity < -1 * target_buy_flow(x.buy_location.supply, x.buy_location.tradeVolume)) {
                     console.log(`skipping ${x.good} due to existing buy flow: ${buy_flow}`)
                     return false
                 }
-                if (sell_flow + x.quantity > TRADE_VOLUME_MULTIPLIER * x.sell_location.tradeVolume) {
+                if (sell_flow + x.quantity > target_sell_flow(x.sell_location.supply, x.sell_location.tradeVolume)) {
                     console.log(`skipping ${x.good} due to existing sell flow: ${sell_flow}`)
                     return false
                 }
@@ -181,22 +197,33 @@ const load_options = async (universe, ship_location, cargo_size) => {
                 }
             }
             const { purchasePrice, sellPrice, tradeVolume } = good
-            if (goods[good.symbol].buy_price == null || purchasePrice < goods[good.symbol].buy_price) {
-                goods[good.symbol].buy_price = purchasePrice
-                goods[good.symbol].buy_waypoint = w.symbol
-                goods[good.symbol].buy_trade_volume = tradeVolume
-                goods[good.symbol].buy_activity = good.activity
-                goods[good.symbol].buy_supply = good.supply
+            if (supply_map[good.supply] >= 3) {
+                if (goods[good.symbol].buy_price == null || purchasePrice < goods[good.symbol].buy_price) {
+                    goods[good.symbol].buy_price = purchasePrice
+                    goods[good.symbol].buy_waypoint = w.symbol
+                    goods[good.symbol].buy_trade_volume = tradeVolume
+                    goods[good.symbol].buy_activity = good.activity
+                    goods[good.symbol].buy_supply = good.supply
+                }
             }
-            if (goods[good.symbol].sell_price == null || sellPrice > goods[good.symbol].sell_price) {
-                goods[good.symbol].sell_price = sellPrice
-                goods[good.symbol].sell_waypoint = w.symbol
-                goods[good.symbol].sell_trade_volume = tradeVolume
-                goods[good.symbol].sell_activity = good.activity
-                goods[good.symbol].sell_supply = good.supply
+            if (supply_map[good.supply] <= 3) {
+                if (goods[good.symbol].sell_price == null || sellPrice > goods[good.symbol].sell_price) {
+                    goods[good.symbol].sell_price = sellPrice
+                    goods[good.symbol].sell_waypoint = w.symbol
+                    goods[good.symbol].sell_trade_volume = tradeVolume
+                    goods[good.symbol].sell_activity = good.activity
+                    goods[good.symbol].sell_supply = good.supply
+                }
             }
         }
     }
+    // delete empty goods
+    for (const [symbol, good] of Object.entries(goods)) {
+        if (good.buy_price == null || good.sell_price == null) {
+            delete goods[symbol]
+        }
+    }
+
     for (const [symbol, good] of Object.entries(goods)) {
         good.profit = good.sell_price - good.buy_price
     }
@@ -208,7 +235,10 @@ const load_options = async (universe, ship_location, cargo_size) => {
         .filter(([symbol, good]) => good.profit >= 100)
         .map(([symbol, good]) => ({
             good: symbol,
-            quantity: Math.min(TRADE_VOLUME_MULTIPLIER * good.buy_trade_volume, TRADE_VOLUME_MULTIPLIER * good.sell_trade_volume, cargo_size),
+            quantity: Math.min(
+                target_buy_flow(good.buy_supply, good.buy_trade_volume),
+                target_sell_flow(good.sell_supply, good.sell_trade_volume),
+                cargo_size),
             profit: good.profit,
             buy_location: {
                 waypoint: good.buy_waypoint,
@@ -224,5 +254,5 @@ const load_options = async (universe, ship_location, cargo_size) => {
                 activity: good.sell_activity,
                 supply: good.sell_supply,
             },
-        }))
+        }))        
 }

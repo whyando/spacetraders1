@@ -15,6 +15,7 @@ import contract_script from './scripts/contract.js'
 import asteroid_controller_script from './scripts/asteroid_controller.js'
 import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
 import supply_chain_trader from './scripts/supply_chain_trader.js'
+import fuel_trader from './scripts/fuel_trader.js'
 
 // todo: add ship filters for type, callsign, etc
 const optionDefinitions = [
@@ -164,11 +165,11 @@ async function run_agent(universe, agent_config) {
             priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
         }
     }
-    jobs[`trading/${system_symbol}/cmd`] = {
-        type: 'trading',
-        ship_type: 'SHIP_COMMAND',
-        params: { system_symbol },
-    }
+    // jobs[`trading/${system_symbol}/cmd`] = {
+    //     type: 'trading',
+    //     ship_type: 'SHIP_COMMAND',
+    //     params: { system_symbol },
+    // }
     for (let i = 1; i <= 5; i++) {
         jobs[`trading/${system_symbol}/${i}`] = {
             type: 'trading',
@@ -179,11 +180,15 @@ async function run_agent(universe, agent_config) {
             priority: 0,
         }
     }
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 4; i++) {
         jobs[`supply_trading/${system_symbol}/${i}`] = {
             type: 'supply_trading',
             ship_type: 'SHIP_LIGHT_HAULER',
         }
+    }
+    jobs[`fuel_trading/${system_symbol}/1`] = {
+        type: 'fuel_trading',
+        ship_type: 'SHIP_LIGHT_HAULER',
     }
     // for (let i = 1; i <= 1; i++) {
     //     // if (callsign != 'WHYANDO') continue
@@ -302,7 +307,7 @@ async function run_agent(universe, agent_config) {
             unassigned_ships[job.ship_type].shift()
         } else {
             console.log(`No unassigned ${job.ship_type}. Trying to buy one`)
-            // @@ continue
+            // continue // @@
 
             if (job.ship_type == 'SHIP_COMMAND') {
                 console.log(`Not buying command ships`)
@@ -327,6 +332,8 @@ async function run_agent(universe, agent_config) {
     }
     stage_runner.save()
 
+    // throw new Error('Not running scripts')
+
     // run scripts:
     const p = []
     for (const job_id in stage_runner.data.status.jobs) {
@@ -342,6 +349,8 @@ async function run_agent(universe, agent_config) {
             p.push(trading_script(universe, agent.agent, ship, job.params))
         } else if (job.type == 'supply_trading') {
             p.push(supply_chain_trader(universe, agent, ship))
+        } else if (job.type == 'fuel_trading') {
+            p.push(fuel_trader(universe, agent, ship))
         } else if (job.type == 'gate_builder') {
             //p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
         } else if (job.type == 'contract') {
@@ -360,9 +369,10 @@ async function run_agent(universe, agent_config) {
     }).map(([job_id, job]) => agent.ship_controller(job.ship))
     // p.push(asteroid_controller_script(universe, agent, asteroid_miners, asteroid_haulers))
 
-    // const cmd_ship = agent.ship_controller(`${callsign}-1`)
+    const cmd_ship = agent.ship_controller(`${callsign}-1`)
     // p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
     // p.push(contract_script(universe, agent, cmd_ship))
+    p.push(fuel_trader(universe, agent, cmd_ship))
 
     // const probe = agent.ship_controller(`${callsign}-2`)   
     // p.push(market_probe_script(universe, probe, { system_symbol }))
