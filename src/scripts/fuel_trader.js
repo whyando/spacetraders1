@@ -57,8 +57,16 @@ async function step(universe, agent, ship) {
         const min_sell_supply = Math.min(...options.sell.map(x => supply_map[x.supply]))
         console.log(`max buy supply: ${max_buy_supply}, min sell supply: ${min_sell_supply}`)
 
+        if (max_buy_supply < 3) {
+            console.log('fuel supply too low. sleeping for 3 minutes')
+            return await new Promise(r => setTimeout(r, 1000*60*3))
+        }
+        if (min_sell_supply > 3) {
+            console.log('fuel supply too high. sleeping for 3 minutes')
+            return await new Promise(r => setTimeout(r, 1000*60*3))
+        }
         if (max_buy_supply == min_sell_supply) {
-            console.log('fuel supply 100% uniform. sleeping for 3 minutes')
+            console.log('fuel supply uniform. sleeping for 3 minutes')
             return await new Promise(r => setTimeout(r, 1000*60*3))
         }
         const buy = options.buy.filter(x => supply_map[x.supply] == max_buy_supply)

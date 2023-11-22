@@ -6,9 +6,9 @@ import Resource from '../resource.js'
 const RESERVED_CREDITS = 20000
 
 const target_buy_flow = (supply, trade_volume) => {
-    if (supply == 'ABUNDANT') return 3 * trade_volume
-    if (supply == 'HIGH') return 2 * trade_volume
-    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'ABUNDANT') return 5 * trade_volume
+    if (supply == 'HIGH') return 4 * trade_volume
+    if (supply == 'MODERATE') return 3 * trade_volume
     if (supply == 'LIMITED') throw new Error('not buying limited')
     if (supply == 'SCARCE') throw new Error('not buying scarce')
     throw new Error(`unknown supply: ${supply}`)
@@ -17,9 +17,9 @@ const target_buy_flow = (supply, trade_volume) => {
 const target_sell_flow = (supply, trade_volume) => {
     if (supply == 'ABUNDANT') throw new Error('not selling abundant')
     if (supply == 'HIGH') throw new Error('not selling high')
-    if (supply == 'MODERATE') return 1 * trade_volume
-    if (supply == 'LIMITED') return 2 * trade_volume
-    if (supply == 'SCARCE') return 3 * trade_volume
+    if (supply == 'MODERATE') return 3 * trade_volume
+    if (supply == 'LIMITED') return 4 * trade_volume
+    if (supply == 'SCARCE') return 20 * trade_volume // while X1-DM98-E46 is bugged with super low supply
     throw new Error(`unknown supply: ${supply}`)
 }
 

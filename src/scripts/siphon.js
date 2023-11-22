@@ -67,7 +67,6 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
         const trade_volume_target = {
             'HYDROCARBON': 80,
             'LIQUID_HYDROGEN': 80,
-            'LIQUID_NITROGEN': 999999999,
         }
         for (const item of ship.cargo.inventory) {
             const good = market.tradeGoods.find(g => g.symbol == item.symbol)
@@ -75,11 +74,17 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
             // would be better to update these conditions less frequently, since
             // we might end up toggling jettison on and off a lot
             let is_jettison = true
-            if (good.tradeVolume < trade_volume_target[item.symbol]) {
-                is_jettison = (supply_map[good.supply] > 3)
-            }
-            else if (good.tradeVolume == trade_volume_target[item.symbol]) {
-                is_jettison = (supply_map[good.supply] > 2)
+            if (item.symbol != 'LIQUID_NITROGEN') {
+                assert(trade_volume_target[item.symbol])
+                if (good.tradeVolume < trade_volume_target[item.symbol]) {
+                    is_jettison = (supply_map[good.supply] > 3)
+                }
+                else if (good.tradeVolume == trade_volume_target[item.symbol]) {
+                    is_jettison = (supply_map[good.supply] > 2)
+                }
+            } else {
+                // never jettison liquid nitrogen
+                is_jettison = false
             }
             if (is_jettison) {
                 await ship.jettison(item.symbol, item.units)
