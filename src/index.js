@@ -165,11 +165,11 @@ async function run_agent(universe, agent_config) {
             priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
         }
     }
-    // jobs[`trading/${system_symbol}/cmd`] = {
-    //     type: 'trading',
-    //     ship_type: 'SHIP_COMMAND',
-    //     params: { system_symbol },
-    // }
+    jobs[`trading/${system_symbol}/cmd`] = {
+        type: 'trading',
+        ship_type: 'SHIP_COMMAND',
+        params: { system_symbol },
+    }
     for (let i = 1; i <= 5; i++) {
         jobs[`trading/${system_symbol}/${i}`] = {
             type: 'trading',
@@ -369,10 +369,10 @@ async function run_agent(universe, agent_config) {
     }).map(([job_id, job]) => agent.ship_controller(job.ship))
     // p.push(asteroid_controller_script(universe, agent, asteroid_miners, asteroid_haulers))
 
-    const cmd_ship = agent.ship_controller(`${callsign}-1`)
+    // const cmd_ship = agent.ship_controller(`${callsign}-1`)
     // p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
     // p.push(contract_script(universe, agent, cmd_ship))
-    p.push(fuel_trader(universe, agent, cmd_ship))
+    // p.push(fuel_trader(universe, agent, cmd_ship))
 
     // const probe = agent.ship_controller(`${callsign}-2`)   
     // p.push(market_probe_script(universe, probe, { system_symbol }))

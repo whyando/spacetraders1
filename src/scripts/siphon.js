@@ -65,8 +65,8 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
 
         const market = await universe.get_local_market(sell_location)
         const trade_volume_target = {
-            'HYDROCARBON': 80,
-            'LIQUID_HYDROGEN': 80,
+            'HYDROCARBON': 200,
+            'LIQUID_HYDROGEN': 20,
         }
         for (const item of ship.cargo.inventory) {
             const good = market.tradeGoods.find(g => g.symbol == item.symbol)
@@ -79,7 +79,7 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
                 if (good.tradeVolume < trade_volume_target[item.symbol]) {
                     is_jettison = (supply_map[good.supply] > 3)
                 }
-                else if (good.tradeVolume == trade_volume_target[item.symbol]) {
+                else if (good.tradeVolume >= trade_volume_target[item.symbol]) {
                     is_jettison = (supply_map[good.supply] > 2)
                 }
             } else {
