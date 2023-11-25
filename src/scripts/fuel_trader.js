@@ -9,8 +9,8 @@ const target_buy_flow = (supply, trade_volume) => {
     if (supply == 'ABUNDANT') return 3 * trade_volume
     if (supply == 'HIGH') return 2 * trade_volume
     if (supply == 'MODERATE') return 1 * trade_volume
-    if (supply == 'LIMITED') throw new Error('not buying limited')
-    if (supply == 'SCARCE') throw new Error('not buying scarce')
+    if (supply == 'LIMITED') return 1 * trade_volume // throw new Error('not buying limited')
+    if (supply == 'SCARCE') return 1 * trade_volume // throw new Error('not buying scarce')
     throw new Error(`unknown supply: ${supply}`)
 }
 
@@ -31,7 +31,6 @@ const supply_map = {
     'SCARCE': 1,
 }
 
-
 export default async function fuel_trader(universe, agent, ship) {
     console.log('script fuel_trader', ship.symbol)
 
@@ -51,46 +50,60 @@ async function step(universe, agent, ship) {
 
     if (mission.data.status == 'complete') {
         console.log('picking new fuel mission')
-        const options = await load_options(universe, ship.nav.systemSymbol, 'FUEL')
+        const trades = await load_trades(universe, ship.nav.systemSymbol, 'FUEL')
 
-        const max_buy_supply = Math.max(...options.buy.map(x => supply_map[x.supply]))
-        const min_sell_supply = Math.min(...options.sell.map(x => supply_map[x.supply]))
-        console.log(`max buy supply: ${max_buy_supply}, min sell supply: ${min_sell_supply}`)
+        // algorithm: try to distribute so that difference in purchasePrice stays within 50 credits
+        let buy_good = null
+        let sell_good = null
+        for (const t of trades) {
+            if (buy_good == null || t.purchasePrice < buy_good.purchasePrice) {
+                buy_good = t
+            }
+            if (sell_good == null || t.purchasePrice > sell_good.purchasePrice) {
+                sell_good = t
+            }
+        }
+        assert(buy_good)
+        assert(sell_good)
 
-        if (max_buy_supply < 3) {
-            console.log('fuel supply too low. sleeping for 3 minutes')
+        console.log(`fuel min purchasePrice: ${buy_good.purchasePrice} at ${buy_good.market}`)
+        console.log(`fuel max purchasePrice: ${sell_good.purchasePrice} at ${sell_good.market}`)
+        if (sell_good.purchasePrice - buy_good.purchasePrice < 20) {
+            console.log('fuel trader bypass - less than 20c difference')
             return await new Promise(r => setTimeout(r, 1000*60*3))
         }
-        if (min_sell_supply > 3) {
-            console.log('fuel supply too high. sleeping for 3 minutes')
-            return await new Promise(r => setTimeout(r, 1000*60*3))
-        }
-        if (max_buy_supply == min_sell_supply) {
-            console.log('fuel supply uniform. sleeping for 3 minutes')
-            return await new Promise(r => setTimeout(r, 1000*60*3))
-        }
-        const buy = options.buy.filter(x => supply_map[x.supply] == max_buy_supply)
-        const sell = options.sell.filter(x => supply_map[x.supply] == min_sell_supply)
-        console.log(`After filters: ${buy.length} buy options, ${sell.length} sell options`)
-        assert(buy.length > 0)
-        assert(sell.length > 0)
+        const quantity = ship.cargo.capacity            
+
+        // if (min_sell_supply > 3) {
+        //     console.log('fuel supply too high. sleeping for 3 minutes')
+        //     return await new Promise(r => setTimeout(r, 1000*60*3))
+        // }
+        // if (max_buy_supply == min_sell_supply) {
+        //     console.log('fuel supply uniform. sleeping for 3 minutes')
+        //     return await new Promise(r => setTimeout(r, 1000*60*3))
+        // }
+        // const buy = options.buy.filter(x => supply_map[x.supply] == max_buy_supply)
+        // const sell = options.sell.filter(x => supply_map[x.supply] == min_sell_supply)
+        // console.log(`After filters: ${buy.length} buy options, ${sell.length} sell options`)
+        // assert(buy.length > 0)
+        // assert(sell.length > 0)
         
-        // prefer EXPORT for buy, otherwise random
-        // random for sell
+        // // prefer EXPORT for buy, otherwise random
+        // // random for sell
 
-        // pick random buy and sell
-        let buy_good;
-        let export_buy_option = buy.find(x => x.type == 'EXPORT')
-        if (export_buy_option) {
-            buy_good = export_buy_option
-        } else {
-            buy_good = buy[Math.floor(Math.random() * buy.length)]
-        }
-        const sell_good = sell[Math.floor(Math.random() * sell.length)]
-        const quantity = Math.min(
-            target_buy_flow(buy_good.supply, buy_good.tradeVolume),
-            target_sell_flow(sell_good.supply, sell_good.tradeVolume),
-            ship.cargo.capacity)
+        // // pick random buy and sell
+        // let buy_good;
+        // let export_buy_option = buy.find(x => x.type == 'EXPORT')
+        // if (export_buy_option) {
+        //     buy_good = export_buy_option
+        // } else {
+        //     buy_good = buy[Math.floor(Math.random() * buy.length)]
+        // }
+        // const sell_good = sell[Math.floor(Math.random() * sell.length)]
+        // const quantity = Math.min(
+        //     target_buy_flow(buy_good.supply, buy_good.tradeVolume),
+        //     target_sell_flow(sell_good.supply, sell_good.tradeVolume),
+        //     ship.cargo.capacity)
         
         // fueltrader bypasses flow conditions
         const buy_key = `${buy_good.market}/${buy_good.symbol}`
@@ -193,11 +206,11 @@ async function step(universe, agent, ship) {
     }
 }
 
-async function load_options(universe, system_symbol, tradeSymbol='FUEL') {
+async function load_trades(universe, system_symbol, tradeSymbol='FUEL') {
     console.log(`Finding routes for ${tradeSymbol}`)
 
     const system = await universe.get_system(system_symbol)
-    const buy_goods = []
+    const trades = []
     for (const w of system.waypoints) {
         const is_market = w.traits.some(t => t.symbol == 'MARKETPLACE')
         if (!is_market) continue    
@@ -205,30 +218,12 @@ async function load_options(universe, system_symbol, tradeSymbol='FUEL') {
         if (!market) continue
 
         const good = market.tradeGoods.find(x => x.symbol == tradeSymbol)
-        if (good && (good.type == 'EXPORT' || good.type == 'EXCHANGE')) {
-            buy_goods.push({
+        if (good) {
+            trades.push({
                 market: w.symbol,
                 ...good,
             })
         }
     }
-
-    const sell_goods = []
-    for (const w of system.waypoints) {
-        const is_market = w.traits.some(t => t.symbol == 'MARKETPLACE')
-        if (!is_market) continue    
-        const market = await universe.get_local_market(w.symbol)
-        if (!market) continue
-
-        const good = market.tradeGoods.find(x => x.symbol == tradeSymbol)
-        // sell to EXPORT, but only at SCARCE
-        if (good && (good.type == 'IMPORT' || good.type == 'EXCHANGE' || (good.type == 'EXPORT' && good.supply == 'SCARCE'))) {
-            sell_goods.push({
-                market: w.symbol,
-                ...good,
-            })
-        }
-    }
-
-    return { buy: buy_goods, sell: sell_goods }
+    return trades
 }

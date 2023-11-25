@@ -165,22 +165,23 @@ async function run_agent(universe, agent_config) {
             priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
         }
     }
-    jobs[`trading/${system_symbol}/cmd`] = {
-        type: 'trading',
+    // jobs[`trading/${system_symbol}/cmd`] = {
+    //     type: 'trading',
+    //     ship_type: 'SHIP_COMMAND',
+    //     params: { system_symbol },
+    // }
+    jobs[`fuel_trading/${system_symbol}/cmd`] = {
+        type: 'fuel_trading',
         ship_type: 'SHIP_COMMAND',
-        params: { system_symbol },
     }
     for (let i = 1; i <= 5; i++) {
         jobs[`trading/${system_symbol}/${i}`] = {
             type: 'trading',
             ship_type: 'SHIP_LIGHT_HAULER',
-            params: {
-                system_symbol,
-            },
-            priority: 0,
+            params: { system_symbol },
         }
     }
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 7; i++) {
         jobs[`supply_trading/${system_symbol}/${i}`] = {
             type: 'supply_trading',
             ship_type: 'SHIP_LIGHT_HAULER',

@@ -28,8 +28,8 @@ class Pathinding {
         max_fuel,
         engine_speed,
         // Only applied if SRC or DEST are not MARKETPLACE waypoints
-        initial_leg_max_fuel_ratio = 0.5,
-        final_leg_max_fuel_ratio = 0.5,
+        initial_leg_max_fuel = null,
+        final_leg_max_fuel = null,
     }) {
         const system_waypoint = sys(src_waypoint)
         assert.equal(system_waypoint, sys(dest_waypoint), 'cannot generate inter-system routes')
@@ -64,7 +64,7 @@ class Pathinding {
                 const distance = Math.max(Math.round(Math.sqrt((src.x - x.x)**2 + (src.y - x.y)**2)), 1)
                 const fuel_cost = distance
                 const duration = flight_duration(distance, engine_speed, 'CRUISE')
-                if (fuel_cost > max_fuel * initial_leg_max_fuel_ratio) continue
+                if (fuel_cost > initial_leg_max_fuel) continue
                 graph[src.symbol][x.symbol] = duration
             }
         }
@@ -73,7 +73,7 @@ class Pathinding {
                 const distance = Math.max(Math.round(Math.sqrt((dest.x - x.x)**2 + (dest.y - x.y)**2)), 1)
                 const fuel_cost = distance
                 const duration = flight_duration(distance, engine_speed, 'CRUISE')
-                if (fuel_cost > max_fuel * final_leg_max_fuel_ratio) continue
+                if (fuel_cost > final_leg_max_fuel) continue
                 graph[x.symbol][dest.symbol] = duration
             }
         }
@@ -81,7 +81,7 @@ class Pathinding {
             const distance = Math.max(Math.round(Math.sqrt((src.x - dest.x)**2 + (src.y - dest.y)**2)), 1)
             const fuel_cost = distance
             const duration = flight_duration(distance, engine_speed, 'CRUISE')
-            const fuel_bound = Math.min(max_fuel * final_leg_max_fuel_ratio, max_fuel * initial_leg_max_fuel_ratio)
+            const fuel_bound = Math.min(final_leg_max_fuel, initial_leg_max_fuel)
             if (fuel_cost <= fuel_bound) {
                 graph[src.symbol][dest.symbol] = duration
             }

@@ -356,14 +356,24 @@ class Ship {
         return construction        
     }
 
-    async goto(target_waypoint_symbol) {
+    // if the start point is not a market, this is pretty good
+    // if the end point is not market, then we make sure the tank is half full at arrival,
+    // so we can escape (may waste fuel since that constraint may be stronger than needed to esnure escape)
+
+    // except when if it's direct between two non-markets, we might end up in a situation where we can't escape, or no route is found
+    async goto(target_waypoint_symbol, { minimum_fuel_after_transit = null } = {}) {
         assert(this.is_in_transit() == false)
         if (this._ship.nav.waypointSymbol == target_waypoint_symbol)
             return
         const route = await Pathfinding.generate_route(this._universe,
             this._ship.nav.waypointSymbol,
             target_waypoint_symbol,
-            { max_fuel: this.ship.fuel.capacity, engine_speed: this.ship.engine.speed, }
+            {
+                max_fuel: this.ship.fuel.capacity,
+                engine_speed: this.ship.engine.speed,
+                initial_leg_max_fuel: this.ship.fuel.current,
+                final_leg_max_fuel: Math.round(this.ship.fuel.current * 0.5),
+            }
         )
         console.log('route:', route.map(x => x.dest))
         for (const leg of route) {

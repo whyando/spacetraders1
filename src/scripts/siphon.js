@@ -60,12 +60,12 @@ async function step(universe, agent, ship, { siphon_location, sell_location }) {
             mission.save()
             return
         }
-        await ship.goto(siphon_location)
+        await ship.goto(siphon_location, { final_leg_max_fuel: 1 })
         await ship.siphon()
 
         const market = await universe.get_local_market(sell_location)
         const trade_volume_target = {
-            'HYDROCARBON': 200,
+            'HYDROCARBON': 400,
             'LIQUID_HYDROGEN': 20,
         }
         for (const item of ship.cargo.inventory) {
