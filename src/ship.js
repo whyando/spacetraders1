@@ -1,6 +1,7 @@
 import assert from 'assert'
 import Pathfinding from './pathfinding.js'
 import { sys } from './util.js'
+import Analytics from './analytics.js'
 
 function validate_response(resp) {
     if (resp.status >= 200 && resp.status < 300) return
@@ -215,6 +216,7 @@ class Ship {
             throw new Error(`no trade goods while fetching market on ${waypoint_symbol}`)
         }
         market.timestamp = new Date()
+        await Analytics.record_market(market)
         return market
     }
 

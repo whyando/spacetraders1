@@ -5,6 +5,7 @@ import Agent from './agent.js'
 import Universe from './universe.js'
 import { sys } from './util.js'
 import Resource from './resource.js'
+import DB from './database.js'
 
 import market_probe_script from './scripts/market_probe.js'
 import trading_script from './scripts/trading.js'
@@ -41,6 +42,7 @@ async function main() {
         return { faction, callsign }
     })
 
+    await DB.init()
     const universe = await Universe.load()
     await Promise.all(agents
         .map(agent => run_agent(universe, agent))
