@@ -31,6 +31,8 @@ const supply_map = {
     'SCARCE': 1,
 }
 
+const EXCLUDED_GOODS = ['CLOTHING']
+
 const should_buy = (good, market) => {
     assert(market.supply)
     return supply_map[market.supply] >= 3
@@ -222,6 +224,10 @@ const load_options = async (universe, ship_location, cargo_size) => {
         if (good.buy_price == null || good.sell_price == null) {
             delete goods[symbol]
         }
+    }
+    // ban from selling certain goods
+    for (const symbol of EXCLUDED_GOODS) {
+        delete goods[symbol]
     }
 
     for (const [symbol, good] of Object.entries(goods)) {
