@@ -118,7 +118,7 @@ async function step(universe, agent, ship, { work_markets }) {
 
         while (quantity != ship.cargo.units) {
             const market = await universe.get_local_market(buy_good.market)
-            const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
+            const { purchasePrice, supply, tradeVolume, activity } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
             if (tradeVolume != buy_good.tradeVolume) {
                 console.log(`warning: trade volume changed ${buy_good.tradeVolume} -> ${tradeVolume}`)
             }
@@ -133,7 +133,7 @@ async function step(universe, agent, ship, { work_markets }) {
                     break
                 }
             }
-            if (buy_good.symbol == 'CLOTHING' && (buy_good.activity == 'RESTRICTED' && buy_good.supply == 'MODERATE')) {
+            if (buy_good.symbol == 'CLOTHING' && (activity == 'RESTRICTED' && supply == 'MODERATE')) {
                 console.log('not buying anymore - clothing restricted')
                 break
             }
