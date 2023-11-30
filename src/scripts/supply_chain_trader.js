@@ -63,7 +63,7 @@ async function step(universe, agent, ship, { work_markets }) {
             const options = await load_options(universe, ship.nav.systemSymbol, work_markets, step)
             const buy = options.buy
                 .filter(x => supply_map[x.supply] >= 3)
-                .filter(x => x.symbol != 'CLOTHING' || x.activity != 'RESTRICTED' || x.supply != 'MODERATE') // test: only buy clothing when not restricted + not moderate
+                .filter(x => !(x.symbol == 'CLOTHING' && x.activity == 'RESTRICTED' && supply_map[x.supply] <= 4)) // test: only buy clothing when not restricted + not moderate
             
             const sell = options.sell.filter(x => supply_map[x.supply] <= 3) // && x.activity != 'RESTRICTED')
             console.log(`After filters: ${buy.length} buy options, ${sell.length} sell options`)
@@ -133,7 +133,7 @@ async function step(universe, agent, ship, { work_markets }) {
                     break
                 }
             }
-            if (buy_good.symbol == 'CLOTHING' && (activity == 'RESTRICTED' && supply == 'MODERATE')) {
+            if (buy_good.symbol == 'CLOTHING' && (activity == 'RESTRICTED' && supply_map[supply] <= 4)) {
                 console.log('not buying anymore - clothing restricted')
                 break
             }
