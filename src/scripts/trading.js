@@ -31,7 +31,7 @@ const supply_map = {
     'SCARCE': 1,
 }
 
-const EXCLUDED_GOODS = ['CLOTHING']
+const EXCLUDED_GOODS = []
 
 const should_buy = (good, market) => {
     assert(market.supply)

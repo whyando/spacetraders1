@@ -5,7 +5,7 @@
 
 # CMD="node src THE-VOID AD-ASTRA ROQUE WHYANDO"
 # CMD="node src THE-VOID AD-ASTRA ROQUE"
-CMD="node src WHYANDO"
+CMD="node src WHYANDO JAVASCRPT-GOOD PYTHON-BAD"
 
 until $CMD &>> run.log; do
     # print date

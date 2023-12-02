@@ -18,6 +18,27 @@ import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
 import supply_chain_trader from './scripts/supply_chain_trader.js'
 import fuel_trader from './scripts/fuel_trader.js'
 
+const get_config = (agent_symbol) => {
+    const CONFIG = {
+        cmd_ship: 'trade', // trade, fuel, contract
+        enable_probe_market_cycle: true,
+    
+        probe_all_waypoints: false,
+        num_trade_haulers: 0,
+        num_supply_trade_haulers: 0,
+        enable_fuel_trade_hauler: false,
+        enable_buying_ships: true,
+        enable_scripts: true,
+    }
+    if (agent_symbol == 'WHYANDO') {
+    }
+    else if (agent_symbol == 'JAVASCRPT-GOOD') {
+        // CONFIG.probe_all_waypoints = true
+    }
+    return CONFIG
+}
+
+
 // todo: add ship filters for type, callsign, etc
 const optionDefinitions = [
     { name: 'agents', alias: 'a', type: String, multiple: true, defaultOption: true },
@@ -51,6 +72,7 @@ async function main() {
 
 async function run_agent(universe, agent_config) {
     const { faction, callsign } = agent_config
+    const CONFIG = get_config(callsign)
     const agent = await Agent.load(universe, faction, callsign)
     console.log(`Agent ${callsign} loaded`)
     const num_ships = Object.keys(agent.ships).length
@@ -84,53 +106,6 @@ async function run_agent(universe, agent_config) {
         }
     }
 
-    const stages = [{
-        // stage A, until we hit 1M credits
-        // starting probe cycles markets fetching prices
-        // command ship runs trading script
-        name: 'A',
-        objective: {
-            credits: 1_000_000,
-        }
-    }, {
-        // stage B, until we hit 10M credits
-        // starting probe idles at shipyard that sells probes
-        // probes spread to all markets
-        // probes spread to all shipyards
-        // command ship runs trading script
-        name: 'B',
-        reserved_trading_credits: 500_000,
-        objective: {
-            credits: 10_000_000,
-        }
-    }, {
-        // stage C, until we open the gate
-        // probes at all markets
-        // probes at all shipyards
-        // x haulers trading
-        // y haulers building gate
-        name: 'C',
-        reserved_trading_credits: 2_000_000,
-        objective: {
-            gate_open: true,
-        }
-    }, {
-        // stage D
-        // probe inter-system
-        // trade inter-system
-        name: 'D',
-        reserved_trading_credits: 2_000_000,
-    }]
-
-    // async process: stage-runner
-    // 1. establish which stage we're in
-    //    current stage is in stored in stage-runner state, and increment only
-    //    stage-runner state is always persisted
-    // 2. buy ships as dictated by stage (and available credits)
-    // 3. run individual ship scripts as dictated by stage
-    // 4. watch for stage completion, and advance to next stage - may need to interrupt ship scripts?
-
-
     // load stage-runner state
     const stage_runner = Resource.get(`data/stage_runner/${callsign}.json`, 
     {
@@ -144,17 +119,16 @@ async function run_agent(universe, agent_config) {
     })
 
     // Set spec
-    stage_runner.data.spec.stage = 'C'
     const probe_waypoints = new Set()
     const jobs = {}
     const { stage } = stage_runner.data.spec
-    if (stage == 'C') {
+    if (CONFIG.probe_all_waypoints) {
         for (const m of markets) {
             probe_waypoints.add(m.symbol)
         }
         for (const s of shipyards) {
             probe_waypoints.add(s.symbol)
-        }        
+        }
     }
     for (const waypoint of probe_waypoints) {
         const id = `idle_probe/${waypoint}`
@@ -167,31 +141,42 @@ async function run_agent(universe, agent_config) {
             priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
         }
     }
-    // jobs[`trading/${system_symbol}/cmd`] = {
-    //     type: 'trading',
-    //     ship_type: 'SHIP_COMMAND',
-    //     params: { system_symbol },
-    // }
-    jobs[`fuel_trading/${system_symbol}/cmd`] = {
-        type: 'fuel_trading',
-        ship_type: 'SHIP_COMMAND',
+    if (CONFIG.cmd_ship == 'trade') {
+        jobs[`trading/${system_symbol}/cmd`] = {
+            type: 'trading',
+            ship_type: 'SHIP_COMMAND',
+            params: { system_symbol },
+        }
+    } else if (CONFIG.cmd_ship == 'fuel') {        
+        jobs[`fuel_trading/${system_symbol}/cmd`] = {
+            type: 'fuel_trading',
+            ship_type: 'SHIP_COMMAND',
+        }
+    } else if (CONFIG.cmd_ship == 'contract') {
+        jobs[`contract/${system_symbol}/cmd`] = {
+            type: 'contract',
+            ship_type: 'SHIP_COMMAND',
+            params: { system_symbol, },
+        }
     }
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= CONFIG.num_trade_haulers; i++) {
         jobs[`trading/${system_symbol}/${i}`] = {
             type: 'trading',
             ship_type: 'SHIP_LIGHT_HAULER',
             params: { system_symbol },
         }
     }
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= CONFIG.num_supply_trade_haulers; i++) {
         jobs[`supply_trading/${system_symbol}/${i}`] = {
             type: 'supply_trading',
             ship_type: 'SHIP_LIGHT_HAULER',
         }
     }
-    jobs[`fuel_trading/${system_symbol}/1`] = {
-        type: 'fuel_trading',
-        ship_type: 'SHIP_LIGHT_HAULER',
+    if (CONFIG.enable_fuel_trade_hauler) {
+        jobs[`fuel_trading/${system_symbol}/1`] = {
+            type: 'fuel_trading',
+            ship_type: 'SHIP_LIGHT_HAULER',
+        }
     }
     // for (let i = 1; i <= 1; i++) {
     //     // if (callsign != 'WHYANDO') continue
@@ -310,7 +295,9 @@ async function run_agent(universe, agent_config) {
             unassigned_ships[job.ship_type].shift()
         } else {
             console.log(`No unassigned ${job.ship_type}. Trying to buy one`)
-            // continue // @@
+            if (!CONFIG.enable_buying_ships) {
+                throw new Error(`No unassigned ${job.ship_type} and buying ships is disabled`)
+            }
 
             if (job.ship_type == 'SHIP_COMMAND') {
                 console.log(`Not buying command ships`)
@@ -335,7 +322,8 @@ async function run_agent(universe, agent_config) {
     }
     stage_runner.save()
 
-    // throw new Error('Not running scripts')
+    if (!CONFIG.enable_scripts)
+        throw new Error('Not running scripts')
 
     // run scripts:
     const p = []
@@ -357,7 +345,7 @@ async function run_agent(universe, agent_config) {
         } else if (job.type == 'gate_builder') {
             //p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
         } else if (job.type == 'contract') {
-            //p.push(contract_script(universe, agent, ship))
+            p.push(contract_script(universe, agent, ship))
         } else  {
             console.log(`Unknown job type ${job.type}`)
         }
@@ -377,8 +365,10 @@ async function run_agent(universe, agent_config) {
     // p.push(contract_script(universe, agent, cmd_ship))
     // p.push(fuel_trader(universe, agent, cmd_ship))
 
-    // const probe = agent.ship_controller(`${callsign}-2`)   
-    // p.push(market_probe_script(universe, probe, { system_symbol }))
+    const probe = agent.ship_controller(`${callsign}-2`)   
+    if (CONFIG.enable_probe_market_cycle) {
+        p.push(market_probe_script(universe, probe, { system_symbol }))
+    }
     // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
     // p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
 
