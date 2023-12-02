@@ -1,7 +1,7 @@
 import { sys } from '../util.js'
 
-const MARKET_REFRESH_INTERVAL = Math.round(2.9 * 60 * 1000)
-const SHIPYARD_REFRESH_INTERVAL = 30 * 60 * 1000
+const MARKET_REFRESH_INTERVAL = Math.round(6.9 * 60 * 1000)
+const SHIPYARD_REFRESH_INTERVAL = 60 * 60 * 1000
 
 export default async function probe_idle_script(universe, probe, { waypoint_symbol }) {
     const system = await universe.get_system(sys(waypoint_symbol))
@@ -11,9 +11,8 @@ export default async function probe_idle_script(universe, probe, { waypoint_symb
     const refresh_shipyard = waypoint.traits.some(t => t.symbol == 'SHIPYARD')
 
     await probe.wait_for_transit()
-    await probe.flight_mode('BURN')
-    await probe.navigate(waypoint_symbol)
-    await probe.wait_for_transit()
+    await probe.flight_mode('CRUISE')
+    await probe.goto(waypoint_symbol)
 
     if (!refresh_market && !refresh_shipyard) return
 

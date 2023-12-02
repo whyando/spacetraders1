@@ -2,7 +2,7 @@ import Universe from './src/universe.js'
 
 const universe = await Universe.load()
 
-const system_symbol = 'X1-DM98'
+const system_symbol = 'X1-NT56'
 const system = await universe.get_system(system_symbol)
 
 const goods = {}

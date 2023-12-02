@@ -3,7 +3,7 @@ import assert from 'assert'
 import { sys } from '../util.js'
 import Resource from '../resource.js'
 
-const RESERVED_CREDITS = 20000
+const RESERVED_CREDITS = 1000
 
 const target_buy_flow = (supply, trade_volume) => {
     if (supply == 'ABUNDANT') return 3 * trade_volume

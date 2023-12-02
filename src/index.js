@@ -22,18 +22,27 @@ const get_config = (agent_symbol) => {
     const CONFIG = {
         cmd_ship: 'trade', // trade, fuel, contract
         enable_probe_market_cycle: true,
+        cmd_ship_idle_on_probe_shipyard: false,
     
-        probe_all_waypoints: false,
+        probe_all_markets: false,
+        probe_all_shipyards: true,
         num_trade_haulers: 0,
         num_supply_trade_haulers: 0,
+        num_siphon_drones: 0,
         enable_fuel_trade_hauler: false,
         enable_buying_ships: true,
+        error_on_missing_ship: true,
         enable_scripts: true,
     }
     if (agent_symbol == 'WHYANDO') {
+        // CONFIG.num_supply_trade_haulers = 1
+        // CONFIG.num_trade_haulers = 1
+        CONFIG.num_siphon_drones = 3
     }
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
-        // CONFIG.probe_all_waypoints = true
+        CONFIG.enable_probe_market_cycle = false
+        CONFIG.probe_all_markets = true
+        CONFIG.error_on_missing_ship = false
     }
     return CONFIG
 }
@@ -101,8 +110,10 @@ async function run_agent(universe, agent_config) {
     const shipyard_waypoints = {}
     for (const shipyard of shipyards) {
         for (const ship_type of shipyard.shipTypes) {
-            // todo: handle multiple shipyards selling the same ship
-            shipyard_waypoints[ship_type.type] = shipyard.symbol
+            if (!(ship_type.type in shipyard_waypoints)) {
+                shipyard_waypoints[ship_type.type] = []
+            }
+            shipyard_waypoints[ship_type.type].push(shipyard.symbol)
         }
     }
 
@@ -122,10 +133,12 @@ async function run_agent(universe, agent_config) {
     const probe_waypoints = new Set()
     const jobs = {}
     const { stage } = stage_runner.data.spec
-    if (CONFIG.probe_all_waypoints) {
+    if (CONFIG.probe_all_markets) {
         for (const m of markets) {
             probe_waypoints.add(m.symbol)
         }
+    }
+    if (CONFIG.probe_all_shipyards) {
         for (const s of shipyards) {
             probe_waypoints.add(s.symbol)
         }
@@ -138,10 +151,19 @@ async function run_agent(universe, agent_config) {
             params: {
                 waypoint_symbol: waypoint,
             },
-            priority: waypoint == shipyard_waypoints['SHIP_PROBE'] ? 100 : 50,
+            priority: waypoint == shipyard_waypoints['SHIP_PROBE'][0] ? 100 : 50,
         }
     }
-    if (CONFIG.cmd_ship == 'trade') {
+
+    if (CONFIG.cmd_ship_idle_on_probe_shipyard) {
+        const waypoint = shipyard_waypoints['SHIP_PROBE'][0]
+        jobs[`idle_probe/${waypoint}/cmd`] = {
+            type: 'idle_probe',
+            ship_type: 'SHIP_COMMAND',
+            params: { waypoint_symbol: waypoint, },
+        }
+    }
+    else if (CONFIG.cmd_ship == 'trade') {
         jobs[`trading/${system_symbol}/cmd`] = {
             type: 'trading',
             ship_type: 'SHIP_COMMAND',
@@ -172,10 +194,22 @@ async function run_agent(universe, agent_config) {
             ship_type: 'SHIP_LIGHT_HAULER',
         }
     }
+    for (let i = 1; i <= CONFIG.num_siphon_drones; i++) {
+        jobs[`siphon_drone/${system_symbol}/${i}`] = {
+            type: 'siphon_drone',
+            ship_type: 'SHIP_SIPHON_DRONE',
+        }
+    }
     if (CONFIG.enable_fuel_trade_hauler) {
         jobs[`fuel_trading/${system_symbol}/1`] = {
             type: 'fuel_trading',
             ship_type: 'SHIP_LIGHT_HAULER',
+        }
+    }
+    if (CONFIG.enable_probe_market_cycle) {
+        jobs[`market_probe/${system_symbol}/1`] = {
+            type: 'market_probe_cycle',
+            ship_type: 'SHIP_PROBE',
         }
     }
     // for (let i = 1; i <= 1; i++) {
@@ -299,24 +333,40 @@ async function run_agent(universe, agent_config) {
                 throw new Error(`No unassigned ${job.ship_type} and buying ships is disabled`)
             }
 
-            if (job.ship_type == 'SHIP_COMMAND') {
-                console.log(`Not buying command ships`)
-                continue
-            }
             try {
                 // might not have enough credits, and might not be a ship at the shipyard
-                const shipyard = shipyard_waypoints[job.ship_type]
-                const is_ship_present = Object.values(agent.ships).some(ship => ship.nav.waypointSymbol == shipyard && ship.nav.status != 'IN_TRANSIT')
-                if (!is_ship_present) {
-                    console.log(`Ship not present at shipyard, not buying`)
+                const shipyards = shipyard_waypoints[job.ship_type].filter(shipyard => {
+                    const is_ship_present = Object.values(agent.ships).some(ship => ship.nav.waypointSymbol == shipyard && ship.nav.status != 'IN_TRANSIT')
+                    return is_ship_present
+                })
+                if (shipyards.length == 0) {
+                    console.log(`No shipyards with ${job.ship_type} present`)
+                    if (CONFIG.error_on_missing_ship) {
+                        throw new Error(`Ship not present at shipyard, not buying`)
+                    }
                     continue
                 }
+
+                const prices = await Promise.all(shipyards.map(async shipyard => {
+                    const buyer_ship = Object.values(agent.ships).find(ship => ship.nav.waypointSymbol == shipyard && ship.nav.status != 'IN_TRANSIT')
+                    const buyer_ship_controller = agent.ship_controller(buyer_ship.symbol)
+                    const sy = await buyer_ship_controller.refresh_shipyard()
+                    assert(sy)
+                    await universe.save_local_shipyard(sy)
+                    const purchase_price = sy.ships.find(s => s.type == job.ship_type).purchasePrice
+                    return { shipyard, purchase_price }
+                }))
+                console.log(`${shipyards.length} shipyards with ${job.ship_type}: ${prices.map(x => `${x.shipyard} ${x.purchase_price}`).join(', ')}`)
+                const shipyard = prices.sort((a, b) => a.purchase_price - b.purchase_price)[0].shipyard
 
                 const ship = await agent.buy_ship(shipyard, job.ship_type)
                 console.log(`Bought ${job.ship_type}: ${ship.symbol}`)
                 status.ship = ship.symbol
             } catch (e) {
                 console.log(`Error while buying ${job.ship_type}: ${e}`)
+                if (CONFIG.error_on_missing_ship) {
+                    throw e
+                }
             }
         }
     }
@@ -346,7 +396,12 @@ async function run_agent(universe, agent_config) {
             //p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
         } else if (job.type == 'contract') {
             p.push(contract_script(universe, agent, ship))
-        } else  {
+        } else if (job.type == 'market_probe_cycle') {
+            p.push(market_probe_script(universe, ship, { system_symbol }))
+        } else if (job.type == 'siphon_drone') {
+            p.push(siphon_script(universe, agent, ship))
+        } 
+        else {
             console.log(`Unknown job type ${job.type}`)
         }
     }
@@ -365,23 +420,17 @@ async function run_agent(universe, agent_config) {
     // p.push(contract_script(universe, agent, cmd_ship))
     // p.push(fuel_trader(universe, agent, cmd_ship))
 
-    const probe = agent.ship_controller(`${callsign}-2`)   
-    if (CONFIG.enable_probe_market_cycle) {
-        p.push(market_probe_script(universe, probe, { system_symbol }))
-    }
+    // const probe = agent.ship_controller(`${callsign}-2`)
     // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
     // p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
 
-    for (const s of Object.values(agent.ships)) {
-        const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')
-        if (is_siphoner) {
-            const ship = agent.ship_controller(s.symbol)
-            p.push(siphon_script(universe, agent, ship))
-        }
-    }
-
-    // const hauler_C = agent.ship_controller(`${callsign}-C`)
-    // p.push(supply_chain_trader(universe, agent, hauler_C))
+    // for (const s of Object.values(agent.ships)) {
+    //     const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')
+    //     if (is_siphoner) {
+    //         const ship = agent.ship_controller(s.symbol)
+    //         p.push(siphon_script(universe, agent, ship))
+    //     }
+    // }
 
     await Promise.all(p)
 }

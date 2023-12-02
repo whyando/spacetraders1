@@ -367,6 +367,12 @@ class Ship {
         assert(this.is_in_transit() == false)
         if (this._ship.nav.waypointSymbol == target_waypoint_symbol)
             return
+        // probe
+        if (this.ship.fuel.capacity == 0) {
+            await this.navigate(target_waypoint_symbol)
+            await this.wait_for_transit()
+            return
+        }
         const route = await Pathfinding.generate_route(this._universe,
             this._ship.nav.waypointSymbol,
             target_waypoint_symbol,

@@ -17,9 +17,9 @@ const target_buy_flow = (supply, trade_volume) => {
 const target_sell_flow = (supply, trade_volume) => {
     if (supply == 'ABUNDANT') throw new Error('not selling abundant')
     if (supply == 'HIGH') throw new Error('not selling high')
-    if (supply == 'MODERATE') return 2 * trade_volume
-    if (supply == 'LIMITED') return 4 * trade_volume
-    if (supply == 'SCARCE') return 5 * trade_volume
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') return 2 * trade_volume
+    if (supply == 'SCARCE') return 3 * trade_volume
     throw new Error(`unknown supply: ${supply}`)
 }
 
