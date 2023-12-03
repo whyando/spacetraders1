@@ -7,12 +7,64 @@ import fs from 'fs/promises'
 export default class Universe {
     local_markets = {}
     local_shipyards = {}
+    surveys = {}
     systems = null
     factions = null
     client = null
 
     constructor() {
         this.client = new Client()
+    }
+
+    async init_surveys() {
+        await fs.mkdir(`data/surveys`, { recursive: true })
+        const files = await fs.readdir(`data/surveys`)
+        for (const file of files) {
+            const asteroid_symbol = file.replace('.json', '')
+            this.surveys[asteroid_symbol] = JSON.parse(await fs.readFile(`data/surveys/${file}`, 'utf-8'))
+        }
+    }
+
+    async get_surveys(asteroid_symbol) {
+        if (this.surveys[asteroid_symbol]) {
+            // todo filter or delete expired surveys
+            const now = new Date()
+            const expired = this.surveys[asteroid_symbol].filter(s => {
+                const ms_till_expire = (new Date(s.expiration)).getTime() - now.getTime()
+                return ms_till_expire <= 5 * 1000
+            })
+            for (const survey of expired) {
+                console.log(`deleting expired survey ${survey.uuid} from ${asteroid_symbol}`)
+                await this.delete_survey(survey)
+            }
+            return this.surveys[asteroid_symbol]
+        }
+        return []
+    }
+
+    async save_surveys(surveys) {
+        // console.log(JSON.stringify(surveys, null, 2))
+        const asteroid_symbol = surveys[0].symbol
+        if (!(asteroid_symbol in this.surveys)) {
+            this.surveys[asteroid_symbol] = []
+        }
+        for (const survey of surveys) {
+            assert(survey.symbol == asteroid_symbol)
+            assert(survey.uuid)
+            this.surveys[asteroid_symbol].push(survey)
+        }
+        // !! could easily be losing surveys due to concurrent writes in async context
+        await fs.writeFile(`data/surveys/${asteroid_symbol}.json`, JSON.stringify(this.surveys[asteroid_symbol], null, 2))
+    }
+
+    async delete_survey(survey) {
+        const asteroid_symbol = survey.symbol
+        if (!(asteroid_symbol in this.surveys)) {
+            console.log(`warning: deleting survey ${survey.uuid} from ${asteroid_symbol} but no surveys loaded`)
+            return
+        }
+        this.surveys[asteroid_symbol] = this.surveys[asteroid_symbol].filter(s => s.uuid != survey.uuid)
+        await fs.writeFile(`data/surveys/${asteroid_symbol}.json`, JSON.stringify(this.surveys[asteroid_symbol], null, 2))
     }
 
     async get_remote_market(waypoint) {
@@ -112,6 +164,7 @@ export default class Universe {
     static async load() {
         const u = new Universe()
         await u.load_init()
+        await u.init_surveys()
         return u
     }
 }

@@ -2,6 +2,7 @@ import assert from 'assert'
 import Pathfinding from './pathfinding.js'
 import { sys } from './util.js'
 import Analytics from './analytics.js'
+import { v4 as uuidv4 } from 'uuid'
 
 function validate_response(resp) {
     if (resp.status >= 200 && resp.status < 300) return
@@ -64,10 +65,12 @@ class Ship {
             console.log(`waiting ${cd} seconds`)
             await new Promise(r => setTimeout(r, cd * 1000))
         }
+        // ! should recheck survey for expiration
         console.log(`Extracting ${this._ship.symbol} with survey`)
         const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/extract/survey`
         const resp = await this._client.post(uri, survey)
         validate_response(resp)
+        // ! survey can expire/exhaust + also asteroid can be overmined
 
         const { extraction, cooldown, cargo } = resp.data.data
         this._ship.cargo = cargo
@@ -108,7 +111,7 @@ class Ship {
 
         const { surveys, cooldown } = resp.data.data
         this._ship.cooldown = cooldown
-        return surveys
+        return surveys.map(s => ({ ...s, uuid: uuidv4() }))
     }
 
     async dock() {
