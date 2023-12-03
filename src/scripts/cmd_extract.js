@@ -124,7 +124,18 @@ async function step(universe, agent, ship, { asteroid, iron_market, fabmat_marke
             await universe.save_surveys(await ship.survey())
         } else {
             const survey = filtered[0].survey
-            await ship.extract_survey(survey)
+            const resp = await ship.extract_survey(survey)
+            if (resp.error) {
+                const code = resp.error.code
+                if (code == 4221) {
+                    // 'Ship survey failed. Target signature is no longer in range or valid.
+                    console.log('survey failed, deleting survey')
+                    await universe.delete_survey(survey)
+                }
+                else {
+                    throw new Error(`unhandled extract_survey error: ${JSON.stringify(resp.error)}`)
+                }
+            }
         }
     }
     else if (mission.data.status == 'sell') {

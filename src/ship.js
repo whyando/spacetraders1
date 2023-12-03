@@ -65,18 +65,33 @@ class Ship {
             console.log(`waiting ${cd} seconds`)
             await new Promise(r => setTimeout(r, cd * 1000))
         }
-        // ! should recheck survey for expiration
+        // recheck survey for expiration
+        const ms_till_expire = (new Date(survey.expiresAt)).getTime() - (new Date()).getTime()
+        if (ms_till_expire <= 1000) {
+            console.log(`Preempted survey expiring`)
+            return {
+                error: {
+                    message: '[preempted] Ship survey failed. Target signature is no longer in range or valid.',
+                    code: 4221,
+                }
+            }
+        }
+
         console.log(`Extracting ${this._ship.symbol} with survey`)
         const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/extract/survey`
-        const resp = await this._client.post(uri, survey)
+        const resp = await this._client.post(uri, survey, { validateStatus: false })
+        if (resp.status == 400 && resp.data.error) {
+            return resp.data
+        }
+        // handle exhaust response,
+        // handle overmined response
         validate_response(resp)
-        // ! survey can expire/exhaust + also asteroid can be overmined
 
         const { extraction, cooldown, cargo } = resp.data.data
         this._ship.cargo = cargo
         this._ship.cooldown = cooldown
         console.log(JSON.stringify(extraction))
-        return resp.data.data
+        return resp.data
     }
 
     async siphon() {
