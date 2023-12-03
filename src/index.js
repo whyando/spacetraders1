@@ -13,14 +13,13 @@ import shipyard_probe_script from './scripts/shipyard_probe.js'
 import probe_idle_script from './scripts/probe_idle.js'
 import gate_builder_script from './scripts/gate_builder.js'
 import contract_script from './scripts/contract.js'
-import asteroid_controller_script from './scripts/asteroid_controller.js'
 import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
 import supply_chain_trader from './scripts/supply_chain_trader.js'
 import fuel_trader from './scripts/fuel_trader.js'
 
 const get_config = (agent_symbol) => {
     const CONFIG = {
-        cmd_ship: 'trade', // trade, fuel, contract
+        cmd_ship: 'trade', // none, trade, fuel, contract
         enable_probe_market_cycle: true,
         cmd_ship_idle_on_probe_shipyard: false,
     
@@ -44,7 +43,7 @@ const get_config = (agent_symbol) => {
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.probe_all_markets = true
-        // CONFIG.error_on_missing_ship = false
+        CONFIG.cmd_ship = 'none'
     }
     else if (agent_symbol == 'PYTHON-BAD') {
         CONFIG.num_trade_haulers = 3
@@ -402,24 +401,6 @@ async function run_agent(universe, agent_config) {
             console.log(`Unknown job type ${job.type}`)
         }
     }
-    const asteroid_miners = Object.entries(stage_runner.data.status.jobs).filter(([job_id, job]) => {
-        const spec = stage_runner.data.spec.jobs[job_id]
-        return spec?.controller == 'asteroid' && spec?.ship_type == 'SHIP_MINING_DRONE'
-    }).map(([job_id, job]) => agent.ship_controller(job.ship))
-    const asteroid_haulers = Object.entries(stage_runner.data.status.jobs).filter(([job_id, job]) => {
-        const spec = stage_runner.data.spec.jobs[job_id]
-        return spec?.controller == 'asteroid' && spec?.ship_type == 'SHIP_LIGHT_HAULER'
-    }).map(([job_id, job]) => agent.ship_controller(job.ship))
-    // p.push(asteroid_controller_script(universe, agent, asteroid_miners, asteroid_haulers))
-
-    // const cmd_ship = agent.ship_controller(`${callsign}-1`)
-    // p.push(trading_script(universe, agent.agent, cmd_ship, { system_symbol }))
-    // p.push(contract_script(universe, agent, cmd_ship))
-    // p.push(fuel_trader(universe, agent, cmd_ship))
-
-    // const probe = agent.ship_controller(`${callsign}-2`)
-    // p.push(shipyard_probe_script(universe, probe, { system_symbol }))
-    // p.push(probe_idle_script(universe, probe_f, { waypoint_symbol: 'X1-DM98-A2' })) // shipyard for probes
 
     // for (const s of Object.values(agent.ships)) {
     //     const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')

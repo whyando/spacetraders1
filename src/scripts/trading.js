@@ -35,6 +35,13 @@ const EXCLUDED_GOODS = []
 
 const should_buy = (good, market) => {
     assert(market.supply)
+    if (market.type == 'EXCHANGE') {
+        return supply_map[market.supply] >= 3
+    }
+    assert(market.activity)
+    if (market.activity == 'STRONG') {
+        return supply_map[market.supply] >= 4
+    }
     return supply_map[market.supply] >= 3
 }
 
@@ -100,7 +107,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
 
             while (quantity != ship.cargo.units) {
                 const market = await universe.get_local_market(buy_location.waypoint)
-                const { purchasePrice, supply, tradeVolume } = market.tradeGoods.find(g => g.symbol == good)
+                const { purchasePrice, supply, tradeVolume, activity, type } = market.tradeGoods.find(g => g.symbol == good)
                 if (purchasePrice != buy_location.purchasePrice) {
                     console.log(`warning: purchase price changed ${buy_location.purchasePrice} -> ${purchasePrice}`)
                     if (tradeVolume != buy_location.tradeVolume) {
@@ -110,7 +117,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
                         console.log('not buying anymore - price too high')
                         break
                     }
-                    if (should_buy(good, { purchasePrice, supply }) == false) {
+                    if (should_buy(good, { purchasePrice, supply, activity, type }) == false) {
                         console.log(`not buying anymore - supply too low: ${supply}, ${purchasePrice}`)
                         break
                     }

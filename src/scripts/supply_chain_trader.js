@@ -31,6 +31,27 @@ const supply_map = {
     'SCARCE': 1,
 }
 
+const should_buy_good = (good) => {
+    const { activity, supply, purchasePrice, tradeVolume, symbol, type } = good
+    assert(supply)
+    assert(purchasePrice)
+    assert(tradeVolume)
+    assert(symbol)
+    assert(type)
+    if (type == 'EXCHANGE') {
+        return supply_map[supply] >= 3
+    }
+    assert(activity)
+    if (type == 'IMPORT') throw new Error('not buying from import')
+    if (activity == 'STRONG') {
+        return supply_map[supply] >= 4
+    }
+    if (activity == 'GROWING' || activity == 'WEAK' || activity == 'RESTRICTED') {
+        return supply_map[supply] >= 3
+    }
+    throw new Error(`unknown activity: ${activity}`)
+}
+
 const LINEAR_CHAIN = ['LIQUID_NITROGEN', 'FERTILIZERS', 'FABRICS', 'CLOTHING']
 
 export default async function supply_chain_trader(universe, agent, ship) {
@@ -62,8 +83,9 @@ async function step(universe, agent, ship, { work_markets }) {
             console.log('picking new mission, step', step)
             const options = await load_options(universe, ship.nav.systemSymbol, work_markets, step)
             const buy = options.buy
-                .filter(x => supply_map[x.supply] >= 3)
-                .filter(x => !(x.symbol == 'CLOTHING' && x.activity == 'RESTRICTED' && supply_map[x.supply] <= 4)) // test: only buy clothing when not restricted + not moderate
+                .filter(x => should_buy_good(x))
+                //.filter(x => supply_map[x.supply] >= 3)
+                //.filter(x => !(x.symbol == 'CLOTHING' && x.activity == 'RESTRICTED' && supply_map[x.supply] <= 4)) // test: only buy clothing when not restricted + not moderate
             
             const sell = options.sell.filter(x => supply_map[x.supply] <= 3) // && x.activity != 'RESTRICTED')
             console.log(`After filters: ${buy.length} buy options, ${sell.length} sell options`)
@@ -118,7 +140,8 @@ async function step(universe, agent, ship, { work_markets }) {
 
         while (quantity != ship.cargo.units) {
             const market = await universe.get_local_market(buy_good.market)
-            const { purchasePrice, supply, tradeVolume, activity } = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
+            const good1 = market.tradeGoods.find(g => g.symbol == buy_good.symbol)
+            const { purchasePrice, supply, tradeVolume, activity } = good1
             if (tradeVolume != buy_good.tradeVolume) {
                 console.log(`warning: trade volume changed ${buy_good.tradeVolume} -> ${tradeVolume}`)
             }
@@ -128,13 +151,9 @@ async function step(universe, agent, ship, { work_markets }) {
                     console.log('not buying anymore - price too high')
                     break
                 }
-                if (supply_map[supply] < 3) {
-                    console.log(`not buying anymore - supply too low: ${supply}`)
-                    break
-                }
             }
-            if (buy_good.symbol == 'CLOTHING' && (activity == 'RESTRICTED' && supply_map[supply] <= 4)) {
-                console.log('not buying anymore - clothing restricted')
+            if (!should_buy_good(good1)) {
+                console.log('not buying anymore - supply too low')
                 break
             }
             console.log('credits: ', agent.credits)
