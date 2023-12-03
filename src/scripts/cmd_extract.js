@@ -1,18 +1,8 @@
-import fs from 'fs/promises'
 import assert from 'assert'
-import { sys } from '../util.js'
 import Resource from '../resource.js'
 import Agent from '../agent.js'
 import Universe from '../universe.js'
 import DB from '../database.js'
-
-const supply_map = {
-    'ABUNDANT': 5,
-    'HIGH': 4,
-    'MODERATE': 3,
-    'LIMITED': 2,
-    'SCARCE': 1,
-}
 
 async function filter_waypoints(universe, system_symbol, { type, imports, exports, assert_one } = { assert_one: false }) {
     const system = await universe.get_system(system_symbol)

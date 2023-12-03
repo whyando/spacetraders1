@@ -16,6 +16,7 @@ import contract_script from './scripts/contract.js'
 import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
 import supply_chain_trader from './scripts/supply_chain_trader.js'
 import fuel_trader from './scripts/fuel_trader.js'
+import { cmd_extract_script } from './scripts/cmd_extract.js'
 
 const get_config = (agent_symbol) => {
     const CONFIG = {
@@ -39,11 +40,12 @@ const get_config = (agent_symbol) => {
         CONFIG.num_trade_haulers = 1
         CONFIG.num_siphon_drones = 10
         CONFIG.enable_gate_builder = true
+        CONFIG.cmd_ship = 'extract'
     }
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.probe_all_markets = true
-        CONFIG.cmd_ship = 'none'
+        CONFIG.cmd_ship = 'extract'
     }
     else if (agent_symbol == 'PYTHON-BAD') {
         CONFIG.num_trade_haulers = 3
@@ -183,6 +185,11 @@ async function run_agent(universe, agent_config) {
             type: 'contract',
             ship_type: 'SHIP_COMMAND',
             params: { system_symbol, },
+        }
+    } else if (CONFIG.cmd_ship == 'extract') {
+        jobs[`extract/${system_symbol}/cmd`] = {
+            type: 'cmd_extract',
+            ship_type: 'SHIP_COMMAND',
         }
     }
     for (let i = 1; i <= CONFIG.num_trade_haulers; i++) {
@@ -396,7 +403,9 @@ async function run_agent(universe, agent_config) {
             p.push(market_probe_script(universe, ship, { system_symbol }))
         } else if (job.type == 'siphon_drone') {
             p.push(siphon_script(universe, agent, ship))
-        } 
+        } else if (job.type == 'cmd_extract') {
+            p.push(cmd_extract_script(universe, agent, ship))
+        }
         else {
             console.log(`Unknown job type ${job.type}`)
         }
