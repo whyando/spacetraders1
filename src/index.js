@@ -15,6 +15,7 @@ import gate_builder_script from './scripts/gate_builder.js'
 import contract_script from './scripts/contract.js'
 import { siphon_script, siphon_hauler_script } from './scripts/siphon.js'
 import supply_chain_trader from './scripts/supply_chain_trader.js'
+import supply_chain_trader_v2 from './scripts/supply_chain_trader_v2.js'
 import fuel_trader from './scripts/fuel_trader.js'
 import { cmd_extract_script } from './scripts/cmd_extract.js'
 
@@ -28,6 +29,7 @@ const get_config = (agent_symbol) => {
         probe_all_shipyards: true,
         num_trade_haulers: 0,
         num_supply_trade_haulers: 0,
+        num_supply_trade_v2_haulers: 0,
         num_siphon_drones: 0,
         enable_fuel_trade_hauler: false,
         enable_buying_ships: true,
@@ -36,6 +38,7 @@ const get_config = (agent_symbol) => {
     }
     if (agent_symbol == 'WHYANDO') {
         CONFIG.num_supply_trade_haulers = 2
+        CONFIG.num_supply_trade_v2_haulers = 2
         CONFIG.enable_probe_market_cycle = false
         CONFIG.num_trade_haulers = 1
         CONFIG.num_siphon_drones = 10
@@ -205,6 +208,12 @@ async function run_agent(universe, agent_config) {
             ship_type: 'SHIP_LIGHT_HAULER',
         }
     }
+    for (let i = 1; i <= CONFIG.num_supply_trade_v2_haulers; i++) {
+        jobs[`supply_trading_v2/${system_symbol}/${i}`] = {
+            type: 'supply_trading_v2',
+            ship_type: 'SHIP_LIGHT_HAULER',
+        }
+    }
     for (let i = 1; i <= CONFIG.num_siphon_drones; i++) {
         jobs[`siphon_drone/${system_symbol}/${i}`] = {
             type: 'siphon_drone',
@@ -230,31 +239,6 @@ async function run_agent(universe, agent_config) {
             params: { system_symbol, },
         }
     }
-    // for (let i = 1; i <= 1; i++) {
-    //     if (callsign != 'WHYANDO') continue
-    //     jobs[`contract/${system_symbol}/${i}`] = {
-    //         type: 'contract',
-    //         ship_type: 'SHIP_COMMAND',
-    //         params: {
-    //             system_symbol,
-    //         },
-    //         priority: 0,
-    //     }
-    // }
-    // for (let i = 1; i <= 5; i++) {
-    //     jobs[`asteroid_extractor/${i}`] = {
-    //         controller: 'asteroid',            
-    //         ship_type: 'SHIP_MINING_DRONE',
-    //         params: { index: i },
-    //     }
-    // }
-    // for (let i = 1; i <= 5; i++) {
-    //     jobs[`asteroid_hauler/${i}`] = {
-    //         controller: 'asteroid',
-    //         ship_type: 'SHIP_LIGHT_HAULER',
-    //         params: { index: i },
-    //     }
-    // }
 
     stage_runner.data.spec.jobs = jobs
 
@@ -393,6 +377,8 @@ async function run_agent(universe, agent_config) {
             p.push(trading_script(universe, agent.agent, ship, job.params))
         } else if (job.type == 'supply_trading') {
             p.push(supply_chain_trader(universe, agent, ship))
+        } else if (job.type == 'supply_trading_v2') {
+            p.push(supply_chain_trader_v2(universe, agent, ship)) 
         } else if (job.type == 'fuel_trading') {
             p.push(fuel_trader(universe, agent, ship))
         } else if (job.type == 'gate_builder') {
@@ -410,14 +396,6 @@ async function run_agent(universe, agent_config) {
             console.log(`Unknown job type ${job.type}`)
         }
     }
-
-    // for (const s of Object.values(agent.ships)) {
-    //     const is_siphoner = s.mounts.some(m => m.symbol == 'MOUNT_GAS_SIPHON_I')
-    //     if (is_siphoner) {
-    //         const ship = agent.ship_controller(s.symbol)
-    //         p.push(siphon_script(universe, agent, ship))
-    //     }
-    // }
 
     await Promise.all(p)
 }

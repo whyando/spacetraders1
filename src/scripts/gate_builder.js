@@ -31,7 +31,7 @@ const always_buy_price_map = {
 }
 
 const should_buy = (good, market) => {
-    return supply_map[market.supply] >= 4
+    return supply_map[market.supply] >= 3
         || market.purchasePrice <= (always_buy_price_map[good] ?? 0)
 }
 
