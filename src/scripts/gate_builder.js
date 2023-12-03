@@ -7,6 +7,15 @@ const RESERVED_CREDITS = 20000
 // bugs: we are buying more materials than required by the construction, when another ship is en route to site
 // fix is: add shared state for the construction site
 
+const target_buy_flow = (supply, trade_volume) => {
+    if (supply == 'ABUNDANT') return 3 * trade_volume
+    if (supply == 'HIGH') return 2 * trade_volume
+    if (supply == 'MODERATE') return 1 * trade_volume
+    if (supply == 'LIMITED') throw new Error('not buying limited')
+    if (supply == 'SCARCE') throw new Error('not buying scarce')
+    throw new Error(`unknown supply: ${supply}`)
+}
+
 const supply_map = {
     'ABUNDANT': 5,
     'HIGH': 4,
@@ -22,13 +31,15 @@ const always_buy_price_map = {
 }
 
 const should_buy = (good, market) => {
-    return supply_map[market.supply] >= 2
+    return supply_map[market.supply] >= 4
         || market.purchasePrice <= (always_buy_price_map[good] ?? 0)
 }
 
 export default async function gate_builder_script(universe, agent, ship, { system_symbol }) {
     const market_shared_state = Resource.get(`data/market_shared/${system_symbol}.json`, {})
     const mission = Resource.get(`data/mission/${ship.symbol}.json`, { status: 'complete'})
+
+    await ship.wait_for_transit()
 
     const system = await universe.get_system(system_symbol)
     const jump_gate_symbol = system.waypoints.find(w => w.type == 'JUMP_GATE').symbol
@@ -37,7 +48,7 @@ export default async function gate_builder_script(universe, agent, ship, { syste
     
     while (true) {
         if (mission.data.status == 'complete') {
-            market_shared_state.data[ship.symbol] = []
+            market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
             console.log('picking new mission')
             if (ship.cargo.units > 0) {
@@ -49,10 +60,19 @@ export default async function gate_builder_script(universe, agent, ship, { syste
             options.sort((a, b) => supply_map[b.buy_location.supply] - supply_map[a.buy_location.supply])
 
             const filtered = options.filter(x => {
-                const buy_key = `buy/${x.buy_location.waypoint}/${x.good}` 
-                const locks = Object.values(market_shared_state.data).flat()
-                const count = locks.filter(x => x == buy_key).length
-                return count <= 1
+                const buy_key = `${x.buy_location.waypoint}/${x.good}` 
+                // const sell_key = `${x.sell_location.waypoint}/${x.good}`
+                const buy_flow = Object.values(market_shared_state.data).map(x => x[buy_key] ?? 0).reduce((a, b) => a + b, 0)
+                // const sell_flow = Object.values(market_shared_state.data).map(x => x[sell_key] ?? 0).reduce((a, b) => a + b, 0)
+                if (buy_flow - x.quantity < -1 * target_buy_flow(x.buy_location.supply, x.buy_location.tradeVolume)) {
+                    console.log(`skipping ${x.good} due to existing buy flow: ${buy_flow}`)
+                    return false
+                }
+                // if (sell_flow + x.quantity > target_sell_flow(x.sell_location.supply, x.sell_location.tradeVolume)) {
+                //     console.log(`skipping ${x.good} due to existing sell flow: ${sell_flow}`)
+                //     return false
+                // }
+                return true
             })
             console.log(`Filtered ${options.length} options down to ${filtered.length} options due to market locks`)
             const filtered2 = filtered.filter(x => should_buy(x.good, x.buy_location))
@@ -66,16 +86,16 @@ export default async function gate_builder_script(universe, agent, ship, { syste
             }
             console.log(`target: ${target.good}`)
             mission.data = { ...target, status: 'buy' }
-            market_shared_state.data[ship.symbol] = [`buy/${target.buy_location.waypoint}/${target.good}`]
+            market_shared_state.data[ship.symbol] = {
+                [`buy/${target.buy_location.waypoint}/${target.good}`]: -target.quantity,
+            }
             market_shared_state.save()
             mission.save()
         }
         else if (mission.data.status == 'buy') {
             const { good, buy_location } = mission.data
         
-            await ship.refuel({maxFuelMissing: 50})
-            await ship.navigate(buy_location.waypoint)
-            await ship.wait_for_transit()
+            await ship.goto(buy_location.waypoint)
             await universe.save_local_market(await ship.refresh_market())
 
             while (ship.cargo.units < ship.cargo.capacity) {
@@ -108,12 +128,15 @@ export default async function gate_builder_script(universe, agent, ship, { syste
             const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
             if (holding <= 0) {
                 console.log('warning: no cargo after buy... aborting mission')
-                mission.status = 'complete'
+                market_shared_state.data[ship.symbol] = {}
+                market_shared_state.save()
+                mission.data.status = 'complete'
+                mission.save()
                 await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))                
                 await new Promise(r => setTimeout(r, 1000*60))
                 continue
             }
-            market_shared_state.data[ship.symbol] = []
+            market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
             mission.data.status = 'deliver'
             mission.save()
@@ -121,9 +144,7 @@ export default async function gate_builder_script(universe, agent, ship, { syste
         else if (mission.data.status == 'deliver') {
             const { good } = mission.data
 
-            await ship.refuel({maxFuelMissing: 50})
-            await ship.navigate(jump_gate_symbol)
-            await ship.wait_for_transit()
+            await ship.goto(jump_gate_symbol)
             while (ship.cargo.units > 0) {
                 const c = await ship.supply_construction(jump_gate_symbol, good, ship.cargo.units)
                 Object.assign(construction, c)
@@ -131,7 +152,7 @@ export default async function gate_builder_script(universe, agent, ship, { syste
             }
             mission.data.status = 'complete'
             mission.save()            
-            market_shared_state.data[ship.symbol] = []
+            market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
         } else {
             throw new Error(`unknown mission status: ${mission.status}`)

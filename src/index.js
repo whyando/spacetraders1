@@ -39,11 +39,15 @@ const get_config = (agent_symbol) => {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.num_trade_haulers = 1
         CONFIG.num_siphon_drones = 10
+        CONFIG.enable_gate_builder = true
     }
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.probe_all_markets = true
         // CONFIG.error_on_missing_ship = false
+    }
+    else if (agent_symbol == 'PYTHON-BAD') {
+        CONFIG.num_trade_haulers = 3
     }
     return CONFIG
 }
@@ -213,17 +217,13 @@ async function run_agent(universe, agent_config) {
             ship_type: 'SHIP_PROBE',
         }
     }
-    // for (let i = 1; i <= 1; i++) {
-    //     // if (callsign != 'WHYANDO') continue
-    //     jobs[`gate/${system_symbol}/${i}`] = {
-    //         type: 'gate_builder',
-    //         ship_type: 'SHIP_LIGHT_HAULER',
-    //         params: {
-    //             system_symbol,
-    //         },
-    //         priority: 0,
-    //     }
-    // }
+    if (CONFIG.enable_gate_builder) {
+        jobs[`gate/${system_symbol}/1`] = {
+            type: 'gate_builder',
+            ship_type: 'SHIP_LIGHT_HAULER',
+            params: { system_symbol, },
+        }
+    }
     // for (let i = 1; i <= 1; i++) {
     //     if (callsign != 'WHYANDO') continue
     //     jobs[`contract/${system_symbol}/${i}`] = {
@@ -308,10 +308,6 @@ async function run_agent(universe, agent_config) {
         unassigned_ships[ship_type] = all_ships[ship_type]
             .filter(s => !Object.values(stage_runner.data.status.jobs).some(j => j.ship == s))
     }
-    console.log(`Unassigned probes: ${unassigned_ships['SHIP_PROBE'].join(', ')}`)
-    console.log(`Unassigned haulers: ${unassigned_ships['SHIP_LIGHT_HAULER'].join(', ')}`)
-    console.log(`Unassigned command ships: ${unassigned_ships['SHIP_COMMAND'].join(', ')}`)
-
     const job_ids = Object.keys(stage_runner.data.spec.jobs).sort((a, b) => stage_runner.data.spec.jobs[b].priority - stage_runner.data.spec.jobs[a].priority)
 
     for (const job_id of job_ids) {
@@ -394,7 +390,7 @@ async function run_agent(universe, agent_config) {
         } else if (job.type == 'fuel_trading') {
             p.push(fuel_trader(universe, agent, ship))
         } else if (job.type == 'gate_builder') {
-            //p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
+            p.push(gate_builder_script(universe, agent.agent, ship, job.params))        
         } else if (job.type == 'contract') {
             p.push(contract_script(universe, agent, ship))
         } else if (job.type == 'market_probe_cycle') {

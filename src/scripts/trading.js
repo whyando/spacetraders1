@@ -46,7 +46,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
 
     while (true) {
         if (mission.data.status == 'complete') {
-            market_shared_state.data[ship.symbol] = []
+            market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
             console.log('picking new mission')
             // throw new Error('interrupt')
@@ -128,9 +128,9 @@ export default async function trading_script(universe, agent, ship, { system_sym
             }
             const holding = ship.cargo.inventory.find(g => g.symbol == good)?.units ?? 0
             if (holding <= 0) {
+                console.log('warning: no cargo after buy... aborting mission')
                 market_shared_state.data[ship.symbol] = {}
                 market_shared_state.save()
-                console.log('warning: no cargo after buy... aborting mission')
                 mission.data.status = 'complete'
                 mission.save()
                 await new Promise(r => setTimeout(r, 1000*60))

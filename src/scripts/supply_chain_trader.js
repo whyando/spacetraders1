@@ -286,4 +286,3 @@ async function get_work_markets(universe, system_symbol) {
     }
     return work_markets
 }
-
