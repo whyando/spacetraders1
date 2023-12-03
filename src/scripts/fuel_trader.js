@@ -173,7 +173,9 @@ async function step(universe, agent, ship) {
             market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
             mission.data.status = 'complete'
-            return mission.save()
+            mission.save()
+            await new Promise(r => setTimeout(r, 1000*60))
+            return
         }
         delete market_shared_state.data[ship.symbol][`${buy_good.market}/${buy_good.symbol}`]
         market_shared_state.save()

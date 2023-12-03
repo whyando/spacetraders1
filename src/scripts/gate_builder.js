@@ -109,7 +109,8 @@ export default async function gate_builder_script(universe, agent, ship, { syste
             if (holding <= 0) {
                 console.log('warning: no cargo after buy... aborting mission')
                 mission.status = 'complete'
-                await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))
+                await fs.writeFile(`data/mission/${ship.symbol}`, JSON.stringify(mission,null,2))                
+                await new Promise(r => setTimeout(r, 1000*60))
                 continue
             }
             market_shared_state.data[ship.symbol] = []

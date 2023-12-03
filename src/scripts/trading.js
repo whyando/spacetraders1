@@ -133,6 +133,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
                 console.log('warning: no cargo after buy... aborting mission')
                 mission.data.status = 'complete'
                 mission.save()
+                await new Promise(r => setTimeout(r, 1000*60))
                 continue
             }
             delete market_shared_state.data[ship.symbol][`${buy_location.waypoint}/${good}`]

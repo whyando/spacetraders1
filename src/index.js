@@ -35,14 +35,15 @@ const get_config = (agent_symbol) => {
         enable_scripts: true,
     }
     if (agent_symbol == 'WHYANDO') {
-        CONFIG.num_supply_trade_haulers = 1
+        CONFIG.num_supply_trade_haulers = 2
+        CONFIG.enable_probe_market_cycle = false
         CONFIG.num_trade_haulers = 1
         CONFIG.num_siphon_drones = 10
     }
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.probe_all_markets = true
-        CONFIG.error_on_missing_ship = false
+        // CONFIG.error_on_missing_ship = false
     }
     return CONFIG
 }
