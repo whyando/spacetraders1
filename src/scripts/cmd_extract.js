@@ -124,7 +124,12 @@ async function step(universe, agent, ship, { asteroid, iron_market, fabmat_marke
                 }
                 else if (code == 4222) {
                     // 4222 "Ship extract failed. Survey X1-NT56-ZZ5X-9CFA7A has been exhausted."
-                    console.log('survey exhausted, deleting survey')
+                    console.log('survey exhausted 1, deleting survey')
+                    await universe.delete_survey(survey)
+                }
+                else if (code == 4224) {
+                    // 4224 "Ship extract failed. Survey X1-NT56-ZZ5X-23B427 has been exhausted."
+                    console.log('survey exhausted 2, deleting survey')
                     await universe.delete_survey(survey)
                 }
                 else {

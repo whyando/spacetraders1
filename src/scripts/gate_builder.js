@@ -112,7 +112,10 @@ export default async function gate_builder_script(universe, agent, ship, { syste
                 const available_credits = agent.credits - RESERVED_CREDITS
                 const construction_mat = construction.materials.find(x => x.tradeSymbol == good)
                 const key = `${jump_gate_symbol}/${good}`
+
+                const enroute_this_ship = market_shared_state.data[ship.symbol][key]
                 const enroute = Object.values(market_shared_state.data).map(x => x[key] ?? 0).reduce((a, b) => a + b, 0)
+                    - enroute_this_ship
 
                 const quantity = Math.min(
                     ship.cargo.capacity - ship.cargo.units,
