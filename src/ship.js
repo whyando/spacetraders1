@@ -80,7 +80,7 @@ class Ship {
         console.log(`Extracting ${this._ship.symbol} with survey`)
         const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/extract/survey`
         const resp = await this._client.post(uri, survey, { validateStatus: false })
-        if (resp.status == 400 && resp.data.error) {
+        if ((resp.status >= 400 && resp.status < 500) && resp.data.error) {
             return resp.data
         }
         // handle exhaust response,

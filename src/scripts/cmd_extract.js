@@ -118,8 +118,13 @@ async function step(universe, agent, ship, { asteroid, iron_market, fabmat_marke
             if (resp.error) {
                 const code = resp.error.code
                 if (code == 4221) {
-                    // 'Ship survey failed. Target signature is no longer in range or valid.
-                    console.log('survey failed, deleting survey')
+                    // 4221 "Ship survey failed. Target signature is no longer in range or valid."
+                    console.log('survey expired or invalid, deleting survey')
+                    await universe.delete_survey(survey)
+                }
+                else if (code == 4222) {
+                    // 4222 "Ship extract failed. Survey X1-NT56-ZZ5X-9CFA7A has been exhausted."
+                    console.log('survey exhausted, deleting survey')
                     await universe.delete_survey(survey)
                 }
                 else {

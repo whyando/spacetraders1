@@ -49,6 +49,7 @@ const get_config = (agent_symbol) => {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.probe_all_markets = true
         CONFIG.cmd_ship = 'extract'
+        CONFIG.enable_gate_builder = true
     }
     else if (agent_symbol == 'PYTHON-BAD') {
         CONFIG.num_trade_haulers = 3
