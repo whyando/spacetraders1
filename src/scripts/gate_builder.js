@@ -44,6 +44,7 @@ export default async function gate_builder_script(universe, agent, ship, { syste
     const system = await universe.get_system(system_symbol)
     const jump_gate_symbol = system.waypoints.find(w => w.type == 'JUMP_GATE').symbol
     const construction = await universe.get_remote_construction(jump_gate_symbol)
+    // !! might be 404
     
     while (true) {
         if (mission.data.status == 'complete') {

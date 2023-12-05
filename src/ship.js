@@ -185,10 +185,35 @@ class Ship {
         return resp.data.data
     }
 
-    async jump(waypoint_symbol) {
-        await this.wait_for_transit()
+    async warp(waypoint_symbol, { wait = true } = {}) {
+        assert.equal(this.is_in_transit(), false)
         if (this._ship.nav.waypointSymbol == waypoint_symbol)
             return
+        await this.orbit()
+        console.log(`Warping ${this._ship.symbol} to ${waypoint_symbol}`)
+        const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/warp`
+        const resp = await this._client.post(uri, { waypointSymbol: waypoint_symbol })
+        validate_response(resp)
+        const { fuel, nav } = resp.data.data
+        this._ship.fuel = fuel
+        this._ship.nav = nav
+    
+        if (wait) {
+            await this.wait_for_transit()
+            // mutate this._ship to change nav.status from IN_TRANSIT to IN_ORBIT ?
+        }
+        return resp.data.data
+    }
+
+    async jump(waypoint_symbol) {
+        assert.equal(this.is_in_transit(), false)
+        if (this._ship.nav.waypointSymbol == waypoint_symbol)
+            return
+        const cd = this._ship.cooldown.remainingSeconds
+        if (cd > 0) {
+            console.log(`waiting ${cd} seconds`)
+            await new Promise(r => setTimeout(r, cd * 1000))
+        }
         await this.orbit()
         console.log(`Jumping ${this._ship.symbol} to ${waypoint_symbol}`)
         const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/jump`
@@ -306,7 +331,7 @@ class Ship {
 
     // minimum_fuel_level: 'refuel to at least this level'
     // maxFuelMissing: 'this is the maximum that can be missing after refueling'
-    async refuel({ maxFuelMissing = 100, minimum_fuel_level = 0 } = {}) {
+    async refuel({ maxFuelMissing = 100, minimum_fuel_level = 0, fromCargo = false } = {}) {
         await this.wait_for_transit()
         console.log(JSON.stringify(this._ship.fuel))
 
@@ -321,7 +346,7 @@ class Ship {
         await this.dock()
         console.log(`Refueling ${this._ship.symbol}`)
         const url = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/refuel`
-        const resp = await this._client.post(url, { units: missing_fuel })
+        const resp = await this._client.post(url, { units: missing_fuel, fromCargo: fromCargo })
         validate_response(resp)
         const { agent, fuel, transaction } = resp.data.data
         this._ship.fuel = fuel
@@ -403,11 +428,39 @@ class Ship {
         )
         console.log('route:', route.map(x => x.dest))
         for (const leg of route) {
+            // !! bug: assumes we are leaving from a market
             await this.refuel({minimum_fuel_level: leg.fuel_cost})
             await this.flight_mode(leg.flight_mode)
             await this.navigate(leg.dest)
             await this.wait_for_transit()
         }
+    }
+
+    async scan_waypoints() {
+        assert(this.is_in_transit() == false)
+        const cd = this._ship.cooldown.remainingSeconds
+        if (cd > 0) {
+            console.log(`waiting ${cd} seconds`)
+            await new Promise(r => setTimeout(r, cd * 1000))
+        }
+        await this.orbit()
+        console.log(`Scanning waypoints ${this._ship.symbol}`)
+        const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/scan/waypoints`
+        const resp = await this._client.post(uri, {})
+        validate_response(resp)
+        const { cooldown, waypoints } = resp.data.data
+        this._ship.cooldown = cooldown
+        return waypoints
+    }
+
+    async chart() {
+        assert(this.is_in_transit() == false)
+        console.log(`Charting ${this._ship.symbol}`)
+        const uri = `https://api.spacetraders.io/v2/my/ships/${this._ship.symbol}/chart`
+        const resp = await this._client.post(uri, {})
+        validate_response(resp)
+        const { chart, waypoint } = resp.data.data
+        return { chart, waypoint }
     }
 }
 

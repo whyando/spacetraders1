@@ -42,8 +42,8 @@ const get_config = (agent_symbol) => {
         CONFIG.enable_probe_market_cycle = false
         CONFIG.num_trade_haulers = 1
         CONFIG.num_siphon_drones = 10
-        CONFIG.enable_gate_builder = true
-        CONFIG.cmd_ship = 'extract'
+        CONFIG.enable_gate_builder = false
+        CONFIG.cmd_ship = 'none'
     }
     else if (agent_symbol == 'JAVASCRPT-GOOD') {
         CONFIG.enable_probe_market_cycle = false
@@ -276,6 +276,11 @@ async function run_agent(universe, agent_config) {
             frame: 'FRAME_DRONE',
             mounts: ['MOUNT_GAS_SIPHON_I'],
         },
+        SHIP_EXPLORER: {
+            engine: 'ENGINE_ION_DRIVE_II', // 30
+            frame: 'FRAME_EXPLORER',
+            mounts: ['MOUNT_SENSOR_ARRAY_II', 'MOUNT_GAS_SIPHON_II'],
+        },
     }
 
     // it might be better to classify base ship type based on their engine + frame + modules
@@ -396,6 +401,15 @@ async function run_agent(universe, agent_config) {
         else {
             console.log(`Unknown job type ${job.type}`)
         }
+    }
+
+    if (callsign == 'WHYANDO') {
+        const probe_19 = agent.ship_controller('WHYANDO-19')
+        p.push(market_probe_script(universe, probe_19, { system_symbol: 'X1-JU88' }))
+        const hauler_1a = agent.ship_controller('WHYANDO-1A')
+        p.push(trading_script(universe, agent.agent, hauler_1a, { system_symbol: 'X1-JU88' }))
+        const hauler_1b = agent.ship_controller('WHYANDO-1B')
+        p.push(trading_script(universe, agent.agent, hauler_1b, { system_symbol: 'X1-JU88' }))
     }
 
     await Promise.all(p)

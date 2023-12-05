@@ -94,6 +94,15 @@ export default class Universe {
         return construction
     }
 
+    async get_remote_jumpgate_connections(waypoint) {
+        const system_symbol = sys(waypoint)
+        const construction = await this.client.load_resource(
+            `data/remote_jumpconn/${waypoint}.json`,
+            `/v2/systems/${system_symbol}/waypoints/${waypoint}/jump-gate`,
+            { map_fn: x => x.data.connections })
+        return construction
+    }
+
     async save_remote_construction(construction) {
         // this should probably be a method on the client
         const waypoint = construction.symbol
@@ -151,6 +160,13 @@ export default class Universe {
         assert(this.systems[system_symbol].waypoints.length == system_waypoints.length)
         this.systems[system_symbol].waypoints = system_waypoints
         return this.systems[system_symbol]
+    }
+
+    async save_scanned_waypoints(waypoints) {
+        const system_symbol = sys(waypoints[0].symbol)
+        assert(this.systems[system_symbol].waypoints.length == waypoints.length)
+        fs.writeFile(`data/system_waypoints/${system_symbol}.json`, JSON.stringify(waypoints, null, 2))
+        this.systems[system_symbol].waypoints = waypoints
     }
 
     async load_init() {

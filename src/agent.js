@@ -134,6 +134,7 @@ export default class Agent {
     async load_all() {
         const { token } = await load_or_register(this.faction, this.callsign)
         this.client = new Client(token)
+        this.token = token
         await this.load_agent()
         await this.load_ships()
         await this.load_contracts()
