@@ -5,7 +5,8 @@
 
 # CMD="node src THE-VOID AD-ASTRA ROQUE WHYANDO"
 # CMD="node src THE-VOID AD-ASTRA ROQUE"
-CMD="node src WHYANDO JAVASCRPT-GOOD PYTHON-BAD"
+# CMD="node src WHYANDO JAVASCRPT-GOOD PYTHON-BAD"
+CMD="node src/index-explore.js"
 
 until $CMD &>> run.log; do
     # print date

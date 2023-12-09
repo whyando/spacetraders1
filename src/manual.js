@@ -17,7 +17,7 @@ const ship = agent.ship_controller('WHYANDO-16')
 // WHYANDO-1C [X1-ZA74] SHIP_REFINING_FREIGHTER
 // WHYANDO-1D [X1-ZA74] SHIP_PROBE
 
-await ship.wait_for_transit()
+// await ship.wait_for_transit()
 
 console.log(ship.nav.waypointSymbol)
 console.log(ship.fuel)
@@ -35,9 +35,10 @@ console.log(ship.cargo)
 // await agent.buy_ship('X1-JU88-A2', 'SHIP_LIGHT_HAULER')
 // await agent.buy_ship('X1-JU88-A2', 'SHIP_LIGHT_HAULER')
 
-await ship.flight_mode('DRIFT')
-await ship.warp('X1-SH74-A2')
-// await agent.buy_ship('X1-ZA74-C40', 'SHIP_PROBE')
+// await ship.flight_mode('DRIFT')
+// await ship.warp('X1-SH74-A2')
+// await agent.buy_ship('X1-ZA74-A2', 'SHIP_EXPLORER')
+// await agent.buy_ship('X1-ZA74-A2', 'SHIP_EXPLORER')
 
 DB.destroy()
 console.log('done')
