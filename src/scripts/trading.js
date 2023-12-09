@@ -55,7 +55,7 @@ export default async function trading_script(universe, agent, ship, { system_sym
         if (mission.data.status == 'complete') {
             market_shared_state.data[ship.symbol] = {}
             market_shared_state.save()
-            console.log('picking new mission')
+            console.log(`picking new trading mission for ${ship.symbol}`)
             // throw new Error('interrupt')
             if (ship.cargo.units > 0) {
                 console.log('cargo:', JSON.stringify(ship.cargo))
@@ -214,6 +214,7 @@ const load_options = async (universe, ship_location, cargo_size) => {
                     goods[good.symbol].buy_trade_volume = tradeVolume
                     goods[good.symbol].buy_activity = good.activity
                     goods[good.symbol].buy_supply = good.supply
+                    goods[good.symbol].buy_type = good.type
                 }
             }
             if (supply_map[good.supply] <= 3) {
@@ -223,6 +224,7 @@ const load_options = async (universe, ship_location, cargo_size) => {
                     goods[good.symbol].sell_trade_volume = tradeVolume
                     goods[good.symbol].sell_activity = good.activity
                     goods[good.symbol].sell_supply = good.supply
+                    goods[good.symbol].sell_type = good.type
                 }
             }
         }
@@ -255,6 +257,7 @@ const load_options = async (universe, ship_location, cargo_size) => {
                 cargo_size),
             profit: good.profit,
             buy_location: {
+                type: good.buy_type,
                 waypoint: good.buy_waypoint,
                 tradeVolume: good.buy_trade_volume,
                 purchasePrice: good.buy_price,
@@ -262,6 +265,7 @@ const load_options = async (universe, ship_location, cargo_size) => {
                 supply: good.buy_supply,
             },
             sell_location: {
+                type: good.sell_type,
                 waypoint: good.sell_waypoint,
                 tradeVolume: good.sell_trade_volume,
                 sellPrice: good.sell_price,

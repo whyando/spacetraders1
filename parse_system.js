@@ -1,7 +1,7 @@
 
 import Universe from './src/universe.js'
 
-const system_symbol = 'X1-JU88'
+const system_symbol = 'X1-ZA74'
 
 const universe = await Universe.load()
 

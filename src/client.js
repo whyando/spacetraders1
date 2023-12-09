@@ -6,6 +6,7 @@ import pThrottle from 'p-throttle'
 const throttle = pThrottle({
     limit: 1,
     interval: 500,
+    strict: true,
 })
 
 export default class Client {

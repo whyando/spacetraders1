@@ -244,11 +244,12 @@ async function run_agent(universe, agent_config) {
     stage_runner.data.spec.jobs = jobs
 
     // delete jobs in status, that are not in spec
-    for (const job_id in stage_runner.data.status.jobs) {
-        if (!(job_id in stage_runner.data.spec.jobs)) {
-            delete stage_runner.data.status.jobs[job_id]
-        }
-    }
+    // !! disabled - don't unassign jobs
+    // for (const job_id in stage_runner.data.status.jobs) {
+    //     if (!(job_id in stage_runner.data.spec.jobs)) {
+    //         delete stage_runner.data.status.jobs[job_id]
+    //     }
+    // }
 
     const ship_types = {
         SHIP_PROBE: {
@@ -280,6 +281,11 @@ async function run_agent(universe, agent_config) {
             engine: 'ENGINE_ION_DRIVE_II', // 30
             frame: 'FRAME_EXPLORER',
             mounts: ['MOUNT_SENSOR_ARRAY_II', 'MOUNT_GAS_SIPHON_II'],
+        },
+        SHIP_REFINING_FREIGHTER: {
+            engine: 'ENGINE_ION_DRIVE_II', // 30
+            frame: 'FRAME_HEAVY_FREIGHTER',
+            mounts: ['MOUNT_TURRET_I', 'MOUNT_TURRET_I', 'MOUNT_MISSILE_LAUNCHER_I'],
         },
     }
 
@@ -404,12 +410,19 @@ async function run_agent(universe, agent_config) {
     }
 
     if (callsign == 'WHYANDO') {
+        // X1-JU88
         const probe_19 = agent.ship_controller('WHYANDO-19')
         p.push(market_probe_script(universe, probe_19, { system_symbol: 'X1-JU88' }))
         const hauler_1a = agent.ship_controller('WHYANDO-1A')
         p.push(trading_script(universe, agent.agent, hauler_1a, { system_symbol: 'X1-JU88' }))
         const hauler_1b = agent.ship_controller('WHYANDO-1B')
         p.push(trading_script(universe, agent.agent, hauler_1b, { system_symbol: 'X1-JU88' }))
+
+        // X1-ZA74 (capital)
+        const hauler_1c = agent.ship_controller('WHYANDO-1C')
+        p.push(trading_script(universe, agent.agent, hauler_1c, { system_symbol: 'X1-ZA74' }))
+        const probe_1d = agent.ship_controller('WHYANDO-1D')
+        p.push(market_probe_script(universe, probe_1d, { system_symbol: 'X1-ZA74' }))
     }
 
     await Promise.all(p)
