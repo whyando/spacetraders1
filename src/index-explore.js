@@ -111,7 +111,7 @@ const run_system = async (system_symbol) => {
     let is_capital = null
     if (shipyard.shipTypes.some(s => s.type == 'SHIP_LIGHT_HAULER')) {
         is_capital = false
-    } else if (shipyard.shipTypes.some(s => s.type == 'SHIP_HEAVY_HAULER')) {
+    } else if (shipyard.shipTypes.some(s => s.type == 'SHIP_REFINING_FREIGHTER')) {
         is_capital = true
     } else {
         throw new Error(`No haulers available at ${system_symbol}-A2`)
