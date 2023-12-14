@@ -12,5 +12,5 @@ until $CMD &>> run.log; do
     # print date
     echo $(date +%Y-%m-%d_%H-%M-%S)
     echo "Server 'node src' crashed with exit code $?.  Respawning.." >&2
-    sleep 10
+    sleep 30
 done

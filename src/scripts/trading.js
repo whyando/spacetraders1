@@ -59,7 +59,18 @@ export default async function trading_script(universe, agent, ship, { system_sym
             // throw new Error('interrupt')
             if (ship.cargo.units > 0) {
                 console.log('cargo:', JSON.stringify(ship.cargo))
-                throw new Error('cargo not empty')
+                // jettison any FUEL
+                const jettison_whitelist = ['FUEL', 'ANTIMATTER']
+                for (const symbol of jettison_whitelist) {
+                    const i = ship.cargo.inventory.find(c => c.symbol == symbol)
+                    if (i?.units) {
+                        console.log(`cargo not empty - jettisoning cargo ${symbol}`)
+                        await ship.jettison(i.symbol, i.units)
+                    }
+                }
+                if (ship.cargo.units > 0) {
+                    throw new Error('cargo not empty')
+                }
             }
 
             const options = await load_options(universe, ship.nav.waypointSymbol, ship.cargo.capacity)

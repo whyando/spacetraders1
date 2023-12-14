@@ -123,6 +123,12 @@ const run_system = async (system_symbol) => {
     // find the first probe in this system, otherwise buy one
     let probe = Object.values(agent.ships).find(s => s.frame.symbol == 'FRAME_PROBE' && s.nav.systemSymbol == system_symbol)
     if (!probe) {
+        if (is_capital) {
+            console.log(`[${system_symbol}] Not buying probe in captital`)
+            state.status = 'no probe capital'
+            status.save()
+            return
+        }
         console.log(`[${system_symbol}] Buying probe`)
         probe = await agent.buy_ship(shipyard.symbol, 'SHIP_PROBE')
     }
@@ -150,6 +156,7 @@ const run_system = async (system_symbol) => {
     }
     state.status = 'ships bought'
     status.save()
+    await explorer.flight_mode('CRUISE')
     {
         const _p = []
         const probe = agent.ship_controller(state.probe)
@@ -163,6 +170,7 @@ const run_system = async (system_symbol) => {
             const light_hauler_2 = agent.ship_controller(state.light_hauler_2)
             _p.push(trading_script(universe, agent.agent, light_hauler_2, { system_symbol }))
         }
+        _p.push(trading_script(universe, agent.agent, explorer, { system_symbol }))
         state.status = 'running'
         status.save()
         await Promise.all(_p)

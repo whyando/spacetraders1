@@ -51,7 +51,7 @@ for (const s of systems) {
     const market_a4 = await universe.get_remote_market(`${s.symbol}-A4`)
     const i = market_a1.imports.map(i => i.symbol).join(', ')
     const e = market_a4.exports.map(i => i.symbol).join(', ')
-    // console.log(`\tIMPORT: ${i}`)
-    // console.log(`\tEXPORT: ${e}`)
+    console.log(`\tIMPORT: ${i}`)
+    console.log(`\tEXPORT: ${e}`)
 }
 
